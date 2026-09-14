@@ -1,5 +1,6 @@
 <template>
   <aside
+    id="sidebar-nav"
     :class="['sidebar-nav', { 'mobile-open': isOpen, 'touch-expanded': touchExpanded }]"
     aria-label="Navegação Principal"
   >
@@ -10,91 +11,96 @@
         class="btn-close-mobile"
         @click="close"
         aria-label="Fechar menu lateral"
+        :aria-expanded="isOpen"
+        aria-controls="sidebar-nav"
       >
-        &times;
+        <span aria-hidden="true">&times;</span>
       </button>
     </div>
 
-    <ul class="nav-list">
-      <li class="nav-item">
-        <RouterLink to="/dashboard" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">dashboard</span>
-          <span class="label">Dashboard</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/culturas" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">eco</span>
-          <span class="label">Culturas</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/lotes" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">layers</span>
-          <span class="label">Lotes</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/colheitas" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">agriculture</span>
-          <span class="label">Colheitas</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/sensores" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">sensors</span>
-          <span class="label">Sensores</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/irrigacao" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">water_drop</span>
-          <span class="label">Irrigação</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/estoque" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">inventory_2</span>
-          <span class="label">Estoque</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/ocr-notas" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">receipt_long</span>
-          <span class="label">Importar NF (OCR)</span>
-        </RouterLink>
-      </li>
-      <li class="nav-item">
-        <RouterLink to="/alertas" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">notifications</span>
-          <span class="label">Alertas</span>
-        </RouterLink>
-      </li>
+    <nav aria-label="Menu principal">
+      <ul class="nav-list" role="menu">
+        <li class="nav-item" role="none">
+          <RouterLink to="/dashboard" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">dashboard</span>
+            <span class="label">Dashboard</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/culturas" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">eco</span>
+            <span class="label">Culturas</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/lotes" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">layers</span>
+            <span class="label">Lotes</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/colheitas" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">agriculture</span>
+            <span class="label">Colheitas</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/sensores" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">sensors</span>
+            <span class="label">Sensores</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/irrigacao" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">water_drop</span>
+            <span class="label">Irrigação</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/estoque" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">inventory_2</span>
+            <span class="label">Estoque</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/ocr-notas" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">receipt_long</span>
+            <span class="label">Importar NF (OCR)</span>
+          </RouterLink>
+        </li>
+        <li class="nav-item" role="none">
+          <RouterLink to="/alertas" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">notifications</span>
+            <span class="label">Alertas</span>
+          </RouterLink>
+        </li>
 
-      <li v-if="authStore.isGerente || authStore.isAdmin" class="nav-item">
-        <RouterLink to="/historico" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">history</span>
-          <span class="label">Auditoria & Histórico</span>
-        </RouterLink>
-      </li>
+        <li v-if="authStore.isGerente || authStore.isAdmin" class="nav-item" role="none">
+          <RouterLink to="/historico" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">history</span>
+            <span class="label">Auditoria & Histórico</span>
+          </RouterLink>
+        </li>
 
-      <li class="nav-item">
-        <RouterLink to="/perfil" class="nav-link" @click="handleNavClick">
-          <span class="material-symbols-outlined icon">person</span>
-          <span class="label">Meu Perfil</span>
-        </RouterLink>
-      </li>
-    </ul>
+        <li class="nav-item" role="none">
+          <RouterLink to="/perfil" class="nav-link" @click="handleNavClick" role="menuitem">
+            <span class="material-symbols-outlined icon" aria-hidden="true">person</span>
+            <span class="label">Meu Perfil</span>
+          </RouterLink>
+        </li>
+      </ul>
+    </nav>
   </aside>
 </template>
 
 <script setup>
 import { useSidebar } from '@/composables/useSidebar'
-import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { RouterLink } from 'vue-router'
 
 const authStore = useAuthStore()
-const { isOpen, close } = useSidebar()
+// Extraindo propriedades do composable
+const { isOpen, close, touchExpanded } = useSidebar()
 
 function handleNavClick() {
   close()
@@ -136,6 +142,12 @@ function handleNavClick() {
   cursor: pointer;
 }
 
+.btn-close-mobile:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .nav-list {
   list-style: none;
   padding: 0;
@@ -162,11 +174,15 @@ function handleNavClick() {
   color: #ffffff;
 }
 
+.nav-link:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
 .icon {
   font-size: 1.15rem;
 }
 
-/* Suporte de 768px a 1024px (Tablets) e mobile */
 @media (max-width: 1024px) {
   .sidebar-nav {
     position: fixed;

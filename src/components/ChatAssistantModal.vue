@@ -1,21 +1,29 @@
 <template>
   <div class="chatbot-wrapper">
     <!-- Botão Flutuante -->
-    <button 
-      type="button" 
-      class="chat-bubble-btn" 
+    <button
+      type="button"
+      class="chat-bubble-btn"
       @click="toggleChat"
-      aria-label="Abrir Assistente Virtual GreenTech"
+      aria-label="Assistente Virtual GreenTech"
+      :aria-expanded="isOpen"
+      aria-controls="chat-window"
     >
-      <span v-if="!isOpen">🤖</span>
-      <span v-else>&times;</span>
+      <span v-if="!isOpen" aria-hidden="true">🤖</span>
+      <span v-else aria-hidden="true">&times;</span>
     </button>
 
     <!-- Janela de Conversação -->
-    <div v-if="isOpen" class="chat-window">
+    <div
+      v-if="isOpen"
+      id="chat-window"
+      class="chat-window"
+      role="dialog"
+      aria-label="Janela de chat do assistente"
+    >
       <div class="chat-header">
         <div class="bot-info">
-          <span class="bot-avatar">🌿</span>
+          <span class="bot-avatar" aria-hidden="true">🌿</span>
           <div>
             <h4>GreenTech Assistant</h4>
             <span class="status-indicator">Online</span>
@@ -23,29 +31,38 @@
         </div>
       </div>
 
-      <div class="messages-container" ref="messagesArea">
-        <div 
-          v-for="(msg, idx) in mensagens" 
-          :key="idx" 
+      <div
+        class="messages-container"
+        ref="messagesArea"
+        aria-live="polite"
+        aria-relevant="additions"
+      >
+        <div
+          v-for="(msg, idx) in mensagens"
+          :key="idx"
           :class="['message-bubble', `msg-${msg.origem}`]"
         >
           <p>{{ msg.texto }}</p>
           <span class="timestamp">{{ msg.hora }}</span>
         </div>
-        <div v-if="carregandoResposta" class="message-bubble msg-bot typing">
-          Digitando...
-        </div>
+        <div v-if="carregandoResposta" class="message-bubble msg-bot typing">Digitando...</div>
       </div>
 
       <form @submit.prevent="enviarMensagem" class="chat-input-area">
-        <input 
-          v-model="inputTexto" 
-          type="text" 
+        <input
+          v-model="inputTexto"
+          type="text"
           placeholder="Ex: Qual o nível do tanque de água?"
           :disabled="carregandoResposta"
+          aria-label="Mensagem para o assistente"
+          ref="inputRef"
         />
-        <button type="submit" :disabled="!inputTexto.trim() || carregandoResposta">
-          ➤
+        <button
+          type="submit"
+          :disabled="!inputTexto.trim() || carregandoResposta"
+          aria-label="Enviar mensagem"
+        >
+          <span aria-hidden="true">➤</span>
         </button>
       </form>
     </div>
@@ -53,25 +70,31 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
 import { apiClient } from '@/services/api'
+import { nextTick, ref } from 'vue'
 
 const isOpen = ref(false)
 const inputTexto = ref('')
 const carregandoResposta = ref(false)
 const messagesArea = ref(null)
+const inputRef = ref(null)
 
 const mensagens = ref([
   {
     origem: 'bot',
-    texto: 'Olá! Sou o assistente de IA da GreenTech. Como posso ajudar com a sua plantação ou estoque hoje?',
-    hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
+    texto:
+      'Olá! Sou o assistente de IA da GreenTech. Como posso ajudar com a sua plantação ou estoque hoje?',
+    hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  },
 ])
 
 function toggleChat() {
   isOpen.value = !isOpen.value
-  if (isOpen.value) rolarParaFinal()
+  if (isOpen.value) {
+    rolarParaFinal()
+    // Move o foco para o input quando o chat abre para uso imediato via teclado
+    nextTick(() => inputRef.value?.focus())
+  }
 }
 
 async function enviarMensagem() {
@@ -86,30 +109,34 @@ async function enviarMensagem() {
   carregandoResposta.value = true
 
   try {
-    // Endpoint Plug-and-Play de chat no back-end
     const resposta = await apiClient('/ia/chat-assistant/', {
       method: 'POST',
-      body: JSON.stringify({ mensagem: texto })
+      body: JSON.stringify({ mensagem: texto }),
     })
     mensagens.value.push({
       origem: 'bot',
       texto: resposta.mensagem || resposta.texto,
-      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     })
   } catch (err) {
-    // Fallback inteligente para demonstração
     setTimeout(() => {
-      let respostaSimulada = 'Entendido. Seus sensores indicam umidade média em 68% e temperatura ideal.'
+      let respostaSimulada =
+        'Entendido. Seus sensores indicam umidade média em 68% e temperatura ideal.'
       if (texto.toLowerCase().includes('estoque')) {
-        respostaSimulada = 'Verifiquei o estoque: o insumo Biofungicida está crítico com previsão de término em 4 dias.'
-      } else if (texto.toLowerCase().includes('irrigar') || texto.toLowerCase().includes('válvula')) {
-        respostaSimulada = 'O modelo de árvore de decisão indica que o solo da Estufa A já possui umidade suficiente. Irrigação desnecessária no momento.'
+        respostaSimulada =
+          'Verifiquei o estoque: o insumo Biofungicida está crítico com previsão de término em 4 dias.'
+      } else if (
+        texto.toLowerCase().includes('irrigar') ||
+        texto.toLowerCase().includes('válvula')
+      ) {
+        respostaSimulada =
+          'O modelo de árvore de decisão indica que o solo da Estufa A já possui umidade suficiente. Irrigação desnecessária no momento.'
       }
 
       mensagens.value.push({
         origem: 'bot',
         texto: respostaSimulada,
-        hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       })
       carregandoResposta.value = false
       rolarParaFinal()
@@ -156,6 +183,11 @@ function rolarParaFinal() {
 
 .chat-bubble-btn:hover {
   transform: scale(1.05);
+}
+
+.chat-bubble-btn:focus-visible {
+  outline: 3px solid #1b5e20;
+  outline-offset: 3px;
 }
 
 .chat-window {
@@ -260,6 +292,11 @@ function rolarParaFinal() {
   font-size: 0.85rem;
 }
 
+.chat-input-area input:focus-visible {
+  outline: 2px solid var(--cor-verde-primaria, #2e7d32);
+  border-color: transparent;
+}
+
 .chat-input-area button {
   background-color: var(--cor-verde-primaria, #2e7d32);
   color: #fff;
@@ -267,5 +304,10 @@ function rolarParaFinal() {
   padding: 0 1rem;
   border-radius: var(--radius-md, 6px);
   cursor: pointer;
+}
+
+.chat-input-area button:focus-visible {
+  outline: 2px solid #1b5e20;
+  outline-offset: 2px;
 }
 </style>

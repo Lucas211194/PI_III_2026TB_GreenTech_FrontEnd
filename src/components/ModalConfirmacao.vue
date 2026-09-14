@@ -1,17 +1,18 @@
 <template>
   <Teleport to="body">
-    <div 
-      v-if="ativo" 
-      class="modal-backdrop" 
+    <div
+      v-if="ativo"
+      class="modal-backdrop"
       @click.self="cancelar"
-      @keydown.esc="cancelar"
       role="dialog"
       aria-modal="true"
       :aria-label="titulo"
     >
       <div class="modal-card">
         <header class="modal-header">
-          <span :class="['modal-icon', `icon-${variante}`]">{{ iconeVariante }}</span>
+          <span :class="['modal-icon', `icon-${variante}`]" aria-hidden="true">{{
+            iconeVariante
+          }}</span>
           <h3 class="modal-title">{{ titulo }}</h3>
         </header>
 
@@ -20,19 +21,15 @@
         </div>
 
         <footer class="modal-actions">
-          <button 
-            type="button" 
-            class="btn-cancelar" 
-            @click="cancelar"
-            :disabled="processando"
-          >
+          <button type="button" class="btn-cancelar" @click="cancelar" :disabled="processando">
             {{ textoCancelar }}
           </button>
-          <button 
-            type="button" 
+          <button
+            type="button"
             :class="['btn-confirmar', `btn-${variante}`]"
             @click="confirmar"
             :disabled="processando"
+            ref="btnConfirmarRef"
           >
             {{ processando ? 'Processando...' : textoConfirmar }}
           </button>
@@ -43,47 +40,48 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 
 const props = defineProps({
   ativo: {
     type: Boolean,
-    default: false
+    default: false,
   },
   titulo: {
     type: String,
-    default: 'Confirmar Operação'
+    default: 'Confirmar Operação',
   },
   mensagem: {
     type: String,
-    required: true
+    required: true,
   },
   textoConfirmar: {
     type: String,
-    default: 'Confirmar'
+    default: 'Confirmar',
   },
   textoCancelar: {
     type: String,
-    default: 'Voltar'
+    default: 'Voltar',
   },
   variante: {
     type: String,
-    default: 'destrutivo', // 'destrutivo' | 'seguro' | 'alerta'
-    validator: (v) => ['destrutivo', 'seguro', 'alerta'].includes(v)
+    default: 'destrutivo',
+    validator: (v) => ['destrutivo', 'seguro', 'alerta'].includes(v),
   },
   processando: {
     type: Boolean,
-    default: false
-  }
+    default: false,
+  },
 })
 
 const emit = defineEmits(['confirmar', 'cancelar'])
+const btnConfirmarRef = ref(null)
 
 const iconeVariante = computed(() => {
   const mapa = {
     destrutivo: '⚠️',
     seguro: '✅',
-    alerta: 'ℹ️'
+    alerta: 'ℹ️',
   }
   return mapa[props.variante]
 })
@@ -97,6 +95,32 @@ function cancelar() {
     emit('cancelar')
   }
 }
+
+// Captura global da tecla Escape para garantir acessibilidade
+function handleKeydown(e) {
+  if (props.ativo && e.key === 'Escape') {
+    cancelar()
+  }
+}
+
+watch(
+  () => props.ativo,
+  async (newVal) => {
+    if (newVal) {
+      document.addEventListener('keydown', handleKeydown)
+      await nextTick()
+      // Move o foco automaticamente para o botão primário ao abrir o modal
+      btnConfirmarRef.value?.focus()
+    } else {
+      document.removeEventListener('keydown', handleKeydown)
+    }
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <style scoped>
@@ -125,8 +149,14 @@ function cancelar() {
 }
 
 @keyframes scaleUp {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .modal-header {
@@ -159,7 +189,7 @@ function cancelar() {
   margin-top: 0.5rem;
 }
 
-.btn-cancelar, 
+.btn-cancelar,
 .btn-confirmar {
   min-height: 44px;
   padding: 0 1.25rem;
@@ -168,6 +198,12 @@ function cancelar() {
   cursor: pointer;
   font-size: 0.95rem;
   border: 1px solid transparent;
+}
+
+.btn-cancelar:focus-visible,
+.btn-confirmar:focus-visible {
+  outline: 2px solid var(--cor-verde-primaria, #2e7d32);
+  outline-offset: 2px;
 }
 
 .btn-cancelar {
@@ -186,7 +222,7 @@ function cancelar() {
   color: #ffffff;
 }
 
-.btn-cancelar:disabled, 
+.btn-cancelar:disabled,
 .btn-confirmar:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -196,7 +232,7 @@ function cancelar() {
   .modal-actions {
     flex-direction: column;
   }
-  .btn-cancelar, 
+  .btn-cancelar,
   .btn-confirmar {
     width: 100%;
   }

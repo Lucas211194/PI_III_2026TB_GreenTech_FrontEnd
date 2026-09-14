@@ -1,12 +1,18 @@
 <template>
-  <button class="menu-toggle" @click="toggle" aria-label="Abrir menu">
-    <span class="material-symbols-outlined">menu</span>
+  <button
+    class="menu-toggle"
+    @click="toggle"
+    aria-label="Abrir menu principal"
+    :aria-expanded="isOpen"
+    aria-controls="sidebar-nav"
+  >
+    <span class="material-symbols-outlined" aria-hidden="true">menu</span>
   </button>
 </template>
 
 <script setup>
 import { useSidebar } from '@/composables/useSidebar'
-const { toggle } = useSidebar()
+const { isOpen, toggle } = useSidebar()
 </script>
 
 <style scoped>
@@ -23,6 +29,12 @@ const { toggle } = useSidebar()
 
 .menu-toggle:active {
   transform: scale(0.9);
+}
+
+.menu-toggle:focus-visible {
+  outline: 2px solid var(--primary-green, #3a5a40);
+  outline-offset: 4px;
+  border-radius: 4px;
 }
 
 @media (max-width: 768px) {
