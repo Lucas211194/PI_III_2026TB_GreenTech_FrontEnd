@@ -90,20 +90,34 @@
         </li>
       </ul>
     </nav>
+
+    <div class="sidebar-footer">
+      <button type="button" class="nav-link btn-logout" @click="handleLogout">
+        <span class="material-symbols-outlined icon" aria-hidden="true">logout</span>
+        <span class="label">Sair</span>
+      </button>
+    </div>
   </aside>
 </template>
 
 <script setup>
 import { useSidebar } from '@/composables/useSidebar'
 import { useAuthStore } from '@/stores/auth'
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
+const router = useRouter()
 // Extraindo propriedades do composable
 const { isOpen, close, touchExpanded } = useSidebar()
 
 function handleNavClick() {
   close()
+}
+
+function handleLogout() {
+  authStore.logout()
+  close()
+  router.push({ name: 'login' })
 }
 </script>
 
@@ -155,6 +169,31 @@ function handleNavClick() {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0.75rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.btn-logout {
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.btn-logout:hover {
+  background-color: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.btn-logout:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
 }
 
 .nav-link {

@@ -1,109 +1,116 @@
 <template>
-  <main class="login-split-layout">
-    <!-- Lado Esquerdo: Apresentação (Escondido no Mobile) -->
-    <aside class="login-presentation">
-      <div class="presentation-overlay">
-        <div class="presentation-content">
-          <div class="brand-logo">
-            <span class="material-symbols-outlined icon-logo">eco</span>
-          </div>
-          <h1 class="presentation-title">GreenTech</h1>
-          <p class="presentation-subtitle">Gestão Agrícola e Monitoramento Inteligente</p>
+  <main class="login-scene">
+    <!-- Fundo decorativo: gradiente suave + folhas flutuantes -->
+    <div class="scene-backdrop" aria-hidden="true">
+      <span
+        class="leaf"
+        v-for="leaf in leaves"
+        :key="leaf.id"
+        :style="{
+          top: leaf.top,
+          left: leaf.left,
+          '--float-duration': leaf.duration,
+          '--float-delay': leaf.delay,
+          '--float-size': leaf.size,
+        }"
+      >
+        <span class="material-symbols-outlined">eco</span>
+      </span>
+    </div>
 
-          <div class="feature-list">
-            <div class="feature-item">
-              <div class="feature-icon">
-                <span class="material-symbols-outlined">sensors</span>
-              </div>
-              <div class="feature-text">
-                <h3>Telemetria IoT</h3>
-                <p>Acompanhe temperatura, umidade e luminosidade das estufas em tempo real.</p>
-              </div>
-            </div>
+    <div class="login-card">
+      <span class="card-top-accent" aria-hidden="true"></span>
 
-            <div class="feature-item">
-              <div class="feature-icon">
-                <span class="material-symbols-outlined">psychology</span>
-              </div>
-              <div class="feature-text">
-                <h3>IA Integrada</h3>
-                <p>Previsão inteligente de estoque e controle autônomo de irrigação.</p>
-              </div>
-            </div>
-
-            <div class="feature-item">
-              <div class="feature-icon">
-                <span class="material-symbols-outlined">receipt_long</span>
-              </div>
-              <div class="feature-text">
-                <h3>Automação OCR</h3>
-                <p>Entrada rápida de notas fiscais de insumos com leitura automatizada.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Lado Direito: Formulário de Login -->
-    <section class="login-form-section">
-      <div class="login-box">
-        <!-- Cabeçalho visível apenas no mobile -->
-        <div class="mobile-brand">
+      <div class="card-header">
+        <div class="brand-badge" aria-hidden="true">
           <span class="material-symbols-outlined">eco</span>
-          <h2>GreenTech ERP</h2>
         </div>
-
-        <div class="login-header">
-          <h2>Bem-vindo de volta!</h2>
-          <p>Insira suas credenciais para acessar o painel administrativo.</p>
-        </div>
-
-        <form @submit.prevent="handleLogin" class="login-form">
-          <div class="form-group">
-            <label for="username">Usuário</label>
-            <div class="input-wrapper">
-              <span class="material-symbols-outlined input-icon">person</span>
-              <input
-                id="username"
-                v-model="username"
-                type="text"
-                required
-                placeholder="Digite seu usuário"
-                :disabled="carregando"
-                autocomplete="username"
-              />
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="password">Senha</label>
-            <div class="input-wrapper">
-              <span class="material-symbols-outlined input-icon">lock</span>
-              <input
-                id="password"
-                v-model="password"
-                type="password"
-                required
-                placeholder="Digite sua senha"
-                :disabled="carregando"
-                autocomplete="current-password"
-              />
-            </div>
-          </div>
-
-          <button type="submit" class="btn-primary btn-login" :disabled="carregando">
-            <span v-if="carregando" class="loading-state">
-              <span class="material-symbols-outlined spinning">autorenew</span>
-              Acessando...
-            </span>
-            <span v-else>Entrar no Sistema</span>
-          </button>
-        </form>
-
-        <p class="login-footer">Projeto Interdisciplinar III — FHO | Uniararas</p>
+        <h1>GreenTech</h1>
+        <p class="tagline">Cultive dados. Colha decisões.</p>
+        <p class="subtitle">Gestão agrícola e monitoramento inteligente de estufas.</p>
       </div>
-    </section>
+
+      <ul class="feature-strip" aria-label="Funcionalidades do sistema">
+        <li>
+          <span class="feature-icon feature-icon--primary">
+            <span class="material-symbols-outlined" aria-hidden="true">sensors</span>
+          </span>
+          <span>Telemetria IoT</span>
+        </li>
+        <li>
+          <span class="feature-icon feature-icon--accent">
+            <span class="material-symbols-outlined" aria-hidden="true">psychology</span>
+          </span>
+          <span>IA integrada</span>
+        </li>
+        <li>
+          <span class="feature-icon feature-icon--primary">
+            <span class="material-symbols-outlined" aria-hidden="true">receipt_long</span>
+          </span>
+          <span>OCR de notas</span>
+        </li>
+      </ul>
+
+      <form @submit.prevent="handleLogin" class="login-form" novalidate>
+        <div class="field-group field-group--1">
+          <div class="field">
+            <span class="material-symbols-outlined field-icon" aria-hidden="true">person</span>
+            <input
+              id="username"
+              v-model="username"
+              type="text"
+              required
+              placeholder="Usuário"
+              :disabled="carregando"
+              autocomplete="username"
+            />
+          </div>
+        </div>
+
+        <div class="field-group field-group--2">
+          <div class="field">
+            <span class="material-symbols-outlined field-icon" aria-hidden="true">lock</span>
+            <input
+              id="password"
+              v-model="password"
+              :type="mostrarSenha ? 'text' : 'password'"
+              required
+              placeholder="Senha"
+              :disabled="carregando"
+              autocomplete="current-password"
+            />
+            <button
+              type="button"
+              class="toggle-visibility"
+              @click="mostrarSenha = !mostrarSenha"
+              :aria-pressed="mostrarSenha"
+              :aria-label="mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'"
+            >
+              <span class="material-symbols-outlined" aria-hidden="true">
+                {{ mostrarSenha ? 'visibility_off' : 'visibility' }}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <label class="remember-row field-group field-group--3">
+          <input type="checkbox" v-model="lembrarUsuario" />
+          <span>Lembrar meu usuário</span>
+        </label>
+
+        <button type="submit" class="btn-login field-group field-group--4" :disabled="carregando">
+          <span v-if="carregando" class="loading-state">
+            <span class="material-symbols-outlined spinning" aria-hidden="true">autorenew</span>
+            Acessando...
+          </span>
+          <span v-else>Entrar no sistema</span>
+        </button>
+      </form>
+
+      <p class="card-footer field-group field-group--5">
+        Projeto Interdisciplinar III — FHO | Uniararas
+      </p>
+    </div>
   </main>
 </template>
 
@@ -111,7 +118,7 @@
 import { apiClient } from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -121,6 +128,28 @@ const toastStore = useToastStore()
 const username = ref('')
 const password = ref('')
 const carregando = ref(false)
+const mostrarSenha = ref(false)
+const lembrarUsuario = ref(false)
+
+const USUARIO_SALVO_KEY = 'greenTech_usuario_lembrado'
+
+// Folhas decorativas do fundo: geradas uma vez, com posição e tempo de animação variados
+const leaves = Array.from({ length: 7 }, (_, i) => ({
+  id: i,
+  top: `${8 + Math.random() * 80}%`,
+  left: `${4 + Math.random() * 90}%`,
+  duration: `${7 + Math.random() * 5}s`,
+  delay: `${Math.random() * 4}s`,
+  size: `${1.1 + Math.random() * 1.3}rem`,
+}))
+
+onMounted(() => {
+  const usuarioSalvo = localStorage.getItem(USUARIO_SALVO_KEY)
+  if (usuarioSalvo) {
+    username.value = usuarioSalvo
+    lembrarUsuario.value = true
+  }
+})
 
 async function handleLogin() {
   if (carregando.value) return
@@ -135,6 +164,12 @@ async function handleLogin() {
       }),
     })
 
+    if (lembrarUsuario.value) {
+      localStorage.setItem(USUARIO_SALVO_KEY, username.value)
+    } else {
+      localStorage.removeItem(USUARIO_SALVO_KEY)
+    }
+
     authStore.setLoginData(data)
     toastStore.success('Bem-vindo ao GreenTech!')
     router.push({ name: 'dashboard' })
@@ -147,249 +182,368 @@ async function handleLogin() {
 </script>
 
 <style scoped>
-/* Container Principal */
-.login-split-layout {
-  display: flex;
+.login-scene {
+  position: relative;
   min-height: 100vh;
   width: 100%;
-  background-color: #f4f7f6;
-  font-family: 'Inter', 'Poppins', sans-serif;
-}
-
-/* --- LADO ESQUERDO: Apresentação --- */
-.login-presentation {
-  flex: 1.2;
-  background: linear-gradient(135deg, #1b5e20 0%, #388e3c 100%);
-  position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  padding: var(--space-6);
+  overflow: hidden;
+  font-family: var(--font-body);
+  background:
+    radial-gradient(
+      circle at 12% 15%,
+      color-mix(in srgb, var(--color-accent) 40%, transparent) 0%,
+      transparent 45%
+    ),
+    radial-gradient(
+      circle at 88% 12%,
+      color-mix(in srgb, var(--color-primary) 55%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 20% 90%,
+      color-mix(in srgb, var(--color-primary) 45%, transparent) 0%,
+      transparent 50%
+    ),
+    radial-gradient(
+      circle at 90% 85%,
+      color-mix(in srgb, var(--color-accent) 35%, transparent) 0%,
+      transparent 45%
+    ),
+    linear-gradient(
+      160deg,
+      var(--color-primary-dark) 0%,
+      var(--color-primary) 45%,
+      var(--color-accent) 100%
+    );
 }
 
-/* Padrão de fundo opcional para dar textura */
-.login-presentation::before {
-  content: '';
+/* --- Fundo: "linhas de plantio" + folhas flutuantes --- */
+.scene-backdrop {
   position: absolute;
   inset: 0;
-  background-image:
-    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.08) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.15) 0%, transparent 50%);
   pointer-events: none;
 }
 
-.presentation-overlay {
-  position: relative;
-  z-index: 2;
-  padding: 3rem;
-  max-width: 600px;
+.scene-backdrop::before {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  background-image: repeating-linear-gradient(
+    -35deg,
+    rgba(255, 255, 255, 0.07) 0px,
+    rgba(255, 255, 255, 0.07) 1px,
+    transparent 1px,
+    transparent 90px
+  );
 }
 
-.brand-logo {
-  display: inline-flex;
+.leaf {
+  position: absolute;
+  display: block;
+  color: var(--color-text-inverse);
+  opacity: 0.22;
+  font-size: var(--float-size);
+  animation: float-leaf var(--float-duration) ease-in-out var(--float-delay) infinite;
+}
+
+.leaf .material-symbols-outlined {
+  font-size: inherit;
+  display: block;
+}
+
+@keyframes float-leaf {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-18px) rotate(8deg);
+  }
+}
+
+/* --- Cartão de login --- */
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface-glass-strong);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-3xl);
+  box-shadow: var(--shadow-panel);
+  padding: var(--space-8) var(--space-7) var(--space-7);
+  overflow: hidden;
+}
+
+.card-top-accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-primary));
+}
+
+.card-header {
+  text-align: center;
+  margin-bottom: var(--space-6);
+}
+
+.brand-badge {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--space-4);
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 16px;
-  backdrop-filter: blur(10px);
-  margin-bottom: 1.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: var(--color-text-inverse);
+  box-shadow: var(--shadow-md);
 }
 
-.icon-logo {
-  font-size: 2.5rem;
-  color: #ffffff;
+.brand-badge .material-symbols-outlined {
+  font-size: 1.6rem;
 }
 
-.presentation-title {
-  font-size: 3rem;
-  font-weight: 800;
-  margin: 0 0 0.5rem 0;
-  letter-spacing: -0.5px;
+.card-header h1 {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--color-primary-dark);
+  margin: 0 0 var(--space-2) 0;
 }
 
-.presentation-subtitle {
-  font-size: 1.2rem;
-  color: #c8e6c9;
-  margin: 0 0 3rem 0;
-  font-weight: 400;
+.tagline {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-accent);
 }
 
-.feature-list {
+.subtitle {
+  margin: var(--space-1) 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+/* Tira de funcionalidades: reforça a identidade com as cores da marca */
+.feature-strip {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-2);
+  margin: 0 0 var(--space-6);
+  background: color-mix(in srgb, var(--color-bg) 65%, var(--color-surface));
+  border-radius: var(--radius-lg);
+}
+
+.feature-strip li {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
 }
 
-.feature-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 1.25rem;
-  background: rgba(0, 0, 0, 0.15);
-  padding: 1.25rem;
-  border-radius: 12px;
-  backdrop-filter: blur(5px);
-  transition: transform 0.2s ease;
-}
-
-.feature-item:hover {
-  transform: translateX(8px);
+.feature-strip span:last-child {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  line-height: 1.2;
 }
 
 .feature-icon {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 0.75rem;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
-  display: flex;
 }
 
-.feature-text h3 {
-  margin: 0 0 0.25rem 0;
+.feature-icon .material-symbols-outlined {
   font-size: 1.1rem;
-  font-weight: 600;
 }
 
-.feature-text p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #e8f5e9;
-  line-height: 1.4;
+.feature-icon--primary {
+  background: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--color-primary);
 }
 
-/* --- LADO DIREITO: Formulário --- */
-.login-form-section {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  background-color: #ffffff;
-}
-
-.login-box {
-  width: 100%;
-  max-width: 400px;
-}
-
-.mobile-brand {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 2rem;
-  color: #1b5e20;
-}
-
-.mobile-brand .material-symbols-outlined {
-  font-size: 2rem;
-}
-
-.mobile-brand h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
-
-.login-header {
-  margin-bottom: 2.5rem;
-}
-
-.login-header h2 {
-  font-size: 1.8rem;
-  color: #263238;
-  margin: 0 0 0.5rem 0;
-}
-
-.login-header p {
-  color: #546e7a;
-  margin: 0;
-  font-size: 0.95rem;
+.feature-icon--accent {
+  background: color-mix(in srgb, var(--color-accent) 16%, transparent);
+  color: var(--color-accent);
 }
 
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: var(--space-4);
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+/* Entrada escalonada: cada elemento aparece em sequência ao carregar */
+.field-group {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: sprout-in 0.4s ease forwards;
 }
 
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #37474f;
+.field-group--1 {
+  animation-delay: 0.1s;
+}
+.field-group--2 {
+  animation-delay: 0.2s;
+}
+.field-group--3 {
+  animation-delay: 0.3s;
+}
+.field-group--4 {
+  animation-delay: 0.4s;
+}
+.field-group--5 {
+  animation-delay: 0.5s;
 }
 
-.input-wrapper {
+@keyframes sprout-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Campos em pílula, com preenchimento suave */
+.field {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-.input-icon {
+.field-icon {
   position: absolute;
-  left: 1rem;
-  color: #90a4ae;
-  font-size: 1.2rem;
+  left: var(--space-5);
+  font-size: 1.15rem;
+  color: var(--color-text-soft);
+  transition: color var(--transition-fast);
 }
 
-.input-wrapper input {
+.field:focus-within .field-icon {
+  color: var(--color-primary);
+}
+
+.field input {
   width: 100%;
-  padding: 0.8rem 1rem 0.8rem 2.8rem;
-  border: 1px solid #cfd8dc;
-  border-radius: 8px;
-  font-size: 1rem;
-  color: #263238;
-  background-color: #f8fafc;
-  transition: all 0.2s ease;
+  padding: 0.85rem var(--space-5) 0.85rem calc(var(--space-5) * 2 + 0.15rem);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background-color: color-mix(in srgb, var(--color-bg) 55%, var(--color-surface));
+  font-size: 0.95rem;
+  font-family: var(--font-body);
+  color: var(--color-text);
+  transition: var(--transition-fast);
 }
 
-.input-wrapper input:focus {
+.field input::placeholder {
+  color: var(--color-text-soft);
+}
+
+.field input:focus {
   outline: none;
-  border-color: #2e7d32;
-  background-color: #ffffff;
-  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.1);
+  border-color: var(--color-primary);
+  background-color: var(--color-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
-.input-wrapper input:disabled {
-  background-color: #eceff1;
+.field input:disabled {
+  opacity: 0.6;
   cursor: not-allowed;
-  opacity: 0.7;
 }
 
-.btn-login {
-  margin-top: 1rem;
-  width: 100%;
-  padding: 0.85rem;
-  background-color: #2e7d32;
-  color: #ffffff;
+.toggle-visibility {
+  position: absolute;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
   border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
+  border-radius: 50%;
+  color: var(--color-text-soft);
   cursor: pointer;
-  transition:
-    background-color 0.2s,
-    transform 0.1s;
+}
+
+.toggle-visibility:hover {
+  color: var(--color-text-muted);
+}
+
+.toggle-visibility:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+/* Lembrar usuário */
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-2);
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.remember-row input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* Botão principal, em degradê */
+.btn-login {
+  margin-top: var(--space-2);
+  padding: 0.85rem;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+  color: var(--color-text-inverse);
+  font-size: 0.98rem;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
   min-height: 48px;
+  transition:
+    filter var(--transition-fast),
+    transform 0.1s;
 }
 
 .btn-login:hover:not(:disabled) {
-  background-color: #1b5e20;
+  filter: brightness(1.08);
 }
 
 .btn-login:active:not(:disabled) {
   transform: scale(0.98);
 }
 
+.btn-login:focus-visible {
+  outline: 2px solid var(--color-primary-dark);
+  outline-offset: 2px;
+}
+
 .btn-login:disabled {
-  background-color: #9e9e9e;
+  background: var(--color-text-soft);
   cursor: not-allowed;
 }
 
@@ -397,7 +551,7 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .spinning {
@@ -410,54 +564,37 @@ async function handleLogin() {
   }
 }
 
-.login-footer {
-  margin-top: 3rem;
+.card-footer {
+  margin: var(--space-6) 0 0;
   text-align: center;
-  font-size: 0.8rem;
-  color: #90a4ae;
+  font-size: 0.72rem;
+  color: var(--color-text-soft);
 }
 
-/* --- RESPONSIVIDADE --- */
-@media (max-width: 900px) {
-  .login-presentation {
-    display: none; /* Esconde a apresentação em telas menores */
-  }
-
-  .login-split-layout {
-    justify-content: center;
-    align-items: center;
-    padding: 1rem;
-  }
-
-  .login-form-section {
-    width: 100%;
-    max-width: 480px;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
-    flex: none;
-  }
-
-  .mobile-brand {
-    display: flex;
-  }
-
-  .login-header {
-    text-align: center;
-  }
-}
-
+/* --- Responsividade --- */
 @media (max-width: 480px) {
-  .login-form-section {
-    padding: 2rem 1.5rem;
-    box-shadow: none;
-    border-radius: 0;
-    background-color: transparent;
+  .login-card {
+    padding: var(--space-7) var(--space-5) var(--space-6);
   }
 
-  .login-split-layout {
-    background-color: #ffffff;
-    align-items: flex-start;
-    padding-top: 2rem;
+  .feature-strip {
+    padding: var(--space-3) var(--space-1);
+  }
+
+  .feature-strip span:last-child {
+    font-size: 0.62rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leaf {
+    animation: none;
+  }
+
+  .field-group {
+    animation: none;
+    opacity: 1;
+    transform: none;
   }
 }
 </style>
