@@ -10,6 +10,23 @@
     </div>
 
     <section class="registration-container-estoque">
+      <div class="tabs-bar">
+        <button
+          class="tab-btn"
+          :class="{ active: abaAtiva === 'lotes' }"
+          @click="trocarAba('lotes')"
+        >
+          <span class="material-symbols-outlined">eco</span> Lotes de Plantio
+        </button>
+        <button
+          class="tab-btn"
+          :class="{ active: abaAtiva === 'insumos' }"
+          @click="trocarAba('insumos')"
+        >
+          <span class="material-symbols-outlined">science</span> Insumos
+        </button>
+      </div>
+
       <div class="action-bar-estoque">
         <div class="search-box-estoque">
           <span class="material-symbols-outlined search-icon">search</span>
@@ -17,7 +34,9 @@
             type="text"
             class="search-input"
             v-model="busca"
-            placeholder="Buscar cultura no estoque..."
+            :placeholder="
+              abaAtiva === 'lotes' ? 'Buscar cultura no estoque...' : 'Buscar insumo...'
+            "
           />
         </div>
         <button class="btn-generate" @click="abrirFormulario">
@@ -37,7 +56,8 @@
             </div>
           </template>
 
-          <template v-else>
+          <!-- Aba: Lotes de Plantio -->
+          <template v-else-if="abaAtiva === 'lotes'">
             <div v-if="estoqueConsolidado.length === 0" class="empty-state">
               <span class="material-symbols-outlined empty-icon">inventory_2</span>
               <h3>Estoque Zerado</h3>
@@ -84,13 +104,63 @@
               </div>
             </div>
           </template>
+
+          <!-- Aba: Insumos -->
+          <template v-else>
+            <div v-if="insumosFiltrados.length === 0" class="empty-state">
+              <span class="material-symbols-outlined empty-icon">science</span>
+              <h3>Nenhum insumo cadastrado</h3>
+              <p>Importe uma nota fiscal ou lance uma entrada manual.</p>
+            </div>
+
+            <div
+              v-else
+              v-for="item in insumosFiltrados"
+              :key="item.id"
+              class="mini-card"
+              :class="{ active: insumoSelecionado?.id === item.id }"
+              @click="selecionarInsumo(item)"
+              role="button"
+              tabindex="0"
+              @keydown.enter="selecionarInsumo(item)"
+            >
+              <div class="mini-card-header">
+                <h4>{{ item.nome }}</h4>
+                <span class="badge badge-good">{{ traduzirTipoInsumo(item.tipo) }}</span>
+              </div>
+
+              <div class="mini-card-cultura" style="margin-top: 5px">
+                Saldo Atual: <strong>{{ item.quantidade_atual }} {{ item.unidade }}</strong>
+              </div>
+
+              <div
+                v-if="item.validade"
+                class="mini-card-qty"
+                style="color: #673ab7; font-size: 1rem; margin-top: 8px; font-weight: 600"
+              >
+                <span class="material-symbols-outlined" style="font-size: 1.1rem">event</span>
+                Validade: {{ new Date(item.validade).toLocaleDateString('pt-BR') }}
+              </div>
+
+              <div
+                v-if="item.fornecedor"
+                class="mini-card-qty"
+                style="color: #673ab7; font-size: 1rem; margin-top: 8px; font-weight: 600"
+              >
+                <span class="material-symbols-outlined" style="font-size: 1.1rem"
+                  >local_shipping</span
+                >
+                {{ item.fornecedor }}
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Lado Direito: Detalhes e Formulários -->
         <div class="seed-detail-panel">
-          <!-- Formulário de Movimentação -->
+          <!-- Formulário de Movimentação (Lotes) -->
           <form
-            v-if="modoCadastro"
+            v-if="modoCadastro && abaAtiva === 'lotes'"
             @submit.prevent="salvarMovimentacao"
             class="form-grid-layout slide-in"
           >
@@ -160,8 +230,80 @@
             </div>
           </form>
 
+          <!-- Formulário de Movimentação (Insumos) -->
+          <form
+            v-else-if="modoCadastro && abaAtiva === 'insumos'"
+            @submit.prevent="salvarMovimentacaoInsumo"
+            class="form-grid-layout slide-in"
+          >
+            <div class="detail-header" style="grid-column: 1 / -1">
+              <h2>
+                <span class="material-symbols-outlined">add_to_photos</span> Nova Movimentação
+              </h2>
+              <p class="subtitle">Esta ação alterará o saldo do insumo correspondente.</p>
+            </div>
+
+            <div class="form-group full-width">
+              <label>Insumo Alvo</label>
+              <select v-model="formInsumo.insumo_id" required :disabled="salvando">
+                <option value="" disabled>Selecione o insumo...</option>
+                <option v-for="i in insumos" :key="i.id" :value="i.id">
+                  {{ i.nome }} (Saldo: {{ i.quantidade_atual }} {{ i.unidade }})
+                </option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Tipo de Movimentação</label>
+              <select v-model="formInsumo.tipo_movimentacao" required :disabled="salvando">
+                <option value="Entrada">Entrada (Abastecimento)</option>
+                <option value="Saída">Saída (Consumo/Uso)</option>
+                <option value="Perda">Perda / Scrap</option>
+                <option value="Ajuste">Ajuste de Inventário</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Quantidade</label>
+              <input
+                type="number"
+                step="0.01"
+                v-model="formInsumo.quantidade"
+                min="0.01"
+                required
+                :disabled="salvando"
+              />
+            </div>
+
+            <div class="form-group full-width">
+              <label>Motivo da Movimentação</label>
+              <input
+                type="text"
+                v-model="formInsumo.motivo"
+                placeholder="Ex: Aplicação na estufa 3, correção manual..."
+                required
+                :disabled="salvando"
+              />
+            </div>
+
+            <div class="form-actions-right" style="grid-column: 1 / -1">
+              <button
+                type="button"
+                class="btn-outline"
+                @click="modoCadastro = false"
+                :disabled="salvando"
+              >
+                Cancelar
+              </button>
+              <button type="submit" class="btn-save" :disabled="salvando">
+                <span v-if="salvando" class="material-symbols-outlined spinning">autorenew</span>
+                {{ salvando ? 'Registrando...' : 'Registrar Lançamento' }}
+              </button>
+            </div>
+          </form>
+
           <!-- Histórico da Cultura -->
-          <div v-else-if="culturaSelecionada" class="fade-in">
+          <div v-else-if="culturaSelecionada && abaAtiva === 'lotes'" class="fade-in">
             <div class="detail-header" style="margin-bottom: 20px">
               <h2>Histórico de Transações: {{ culturaSelecionada.nome_cultura }}</h2>
               <p class="subtitle">
@@ -283,12 +425,99 @@
             </div>
           </div>
 
-          <!-- Empty State Inicial (Nenhuma cultura selecionada) -->
+          <!-- Histórico do Insumo -->
+          <div v-else-if="insumoSelecionado && abaAtiva === 'insumos'" class="fade-in">
+            <div class="detail-header" style="margin-bottom: 20px">
+              <h2>Histórico de Transações: {{ insumoSelecionado.nome }}</h2>
+              <p class="subtitle">Todas as movimentações registradas para este insumo.</p>
+            </div>
+
+            <div class="stats-grid">
+              <div class="stat-box stat-saldo">
+                <span class="stat-label">SALDO ATUAL</span>
+                <span class="stat-value"
+                  >{{ parseFloat(insumoSelecionado.quantidade_atual) }}
+                  {{ insumoSelecionado.unidade }}</span
+                >
+              </div>
+              <div class="stat-box stat-taxa">
+                <span class="stat-label">TIPO</span>
+                <span class="stat-value">{{ traduzirTipoInsumo(insumoSelecionado.tipo) }}</span>
+              </div>
+            </div>
+
+            <h3 class="extrato-title">
+              <span class="material-symbols-outlined">history</span> Extrato de Movimentações
+            </h3>
+
+            <div v-if="movimentacoesDoInsumoSelecionado.length === 0" class="empty-extrato">
+              <span class="material-symbols-outlined">search_off</span>
+              <p>Nenhuma movimentação registrada para este insumo.</p>
+            </div>
+
+            <div v-else class="extrato-list">
+              <div v-for="m in movimentacoesDoInsumoSelecionado" :key="m.id" class="extrato-card">
+                <div class="extrato-info">
+                  <div class="extrato-header-row">
+                    <span
+                      class="badge"
+                      :class="
+                        m.tipo_movimentacao.toUpperCase() === 'ENTRADA' ? 'badge-good' : 'badge-out'
+                      "
+                    >
+                      {{ m.tipo_movimentacao.toUpperCase() }}
+                    </span>
+                  </div>
+                  <p class="motivo-texto">{{ m.motivo }}</p>
+                  <div class="data-texto">
+                    {{ new Date(m.data_movimentacao).toLocaleString('pt-BR') }}
+                  </div>
+                </div>
+
+                <div class="extrato-acoes">
+                  <div
+                    class="quantidade-texto"
+                    :class="
+                      m.tipo_movimentacao.toUpperCase() === 'ENTRADA' ? 'text-green' : 'text-red'
+                    "
+                  >
+                    {{ m.tipo_movimentacao.toUpperCase() === 'ENTRADA' ? '+' : '-'
+                    }}{{ parseFloat(m.quantidade) }}
+                  </div>
+
+                  <button
+                    v-if="isGerente || isAdmin"
+                    @click.stop="excluirMovimentacaoInsumo(m.id)"
+                    class="btn-icon-delete"
+                    title="Excluir este registro"
+                    :disabled="excluindo === m.id"
+                  >
+                    <span v-if="excluindo === m.id" class="material-symbols-outlined spinning"
+                      >autorenew</span
+                    >
+                    <span v-else class="material-symbols-outlined">delete</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty State Inicial (Nada selecionado) -->
           <div v-else class="detalhe-placeholder">
             <div class="placeholder-content">
               <span class="material-symbols-outlined placeholder-icon">inventory</span>
-              <h3>Nenhuma cultura selecionada</h3>
-              <p>Selecione uma cultura ao lado para auditar seu extrato completo de transações.</p>
+              <h3>
+                {{
+                  abaAtiva === 'lotes' ? 'Nenhuma cultura selecionada' : 'Nenhum insumo selecionado'
+                }}
+              </h3>
+              <p>
+                {{
+                  abaAtiva === 'lotes'
+                    ? 'Selecione uma cultura ao lado para auditar seu extrato completo de transações.'
+                    : 'Selecione um insumo ao lado para ver seu extrato completo de transações.'
+                }}
+              </p>
               <button class="btn-outline" @click="abrirFormulario" style="margin-top: 1rem">
                 <span class="material-symbols-outlined">add</span> Lançar Movimentação Manual
               </button>
@@ -323,11 +552,18 @@ const culturas = ref([])
 const colheitas = ref([])
 const movimentacoesGerais = ref([])
 
+const insumos = ref([])
+const movimentacoesInsumo = ref([])
+const insumoSelecionado = ref(null)
+
+const abaAtiva = ref('lotes')
+
 const culturaSelecionada = ref(null)
 const modoCadastro = ref(false)
 const busca = ref('')
 
 const form = ref({ lote_id: '', tipo_movimentacao: 'Entrada', quantidade: 0.0, motivo: '' })
+const formInsumo = ref({ insumo_id: '', tipo_movimentacao: 'Entrada', quantidade: 0.0, motivo: '' })
 
 const filtros = ref({
   tipo: '',
@@ -381,6 +617,23 @@ const lotesComMovimentacao = computed(() => {
   return Array.from(ids).sort((a, b) => a - b)
 })
 
+const insumosFiltrados = computed(() => {
+  if (!busca.value) return insumos.value
+  return insumos.value.filter((i) => i.nome.toLowerCase().includes(busca.value.toLowerCase()))
+})
+
+const movimentacoesDoInsumoSelecionado = computed(() => {
+  if (!insumoSelecionado.value) return []
+  return movimentacoesInsumo.value
+    .filter((m) => m.insumo_id === insumoSelecionado.value.id)
+    .reverse()
+})
+
+function traduzirTipoInsumo(tipo) {
+  const mapa = { FE: 'Fertilizante', DF: 'Defensivo agrícola', SB: 'Substrato', OU: 'Outro' }
+  return mapa[tipo] || tipo
+}
+
 const movimentacoesFiltradas = computed(() => {
   let resultado = movimentacoesDaCultura.value
 
@@ -426,23 +679,32 @@ const carregarDadosBase = async () => {
   carregando.value = true
   const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
   try {
-    const [resLotes, resCulturas, resColheitas, resEstoque] = await Promise.all([
-      fetch('/api/lotes/', { headers }),
-      fetch('/api/cultura/', { headers }),
-      fetch('/api/colheita/', { headers }),
-      fetch('/api/estoque/', { headers }),
-    ])
+    const [resLotes, resCulturas, resColheitas, resEstoque, resInsumos, resMovInsumo] =
+      await Promise.all([
+        fetch('/api/lotes/', { headers }),
+        fetch('/api/cultura/', { headers }),
+        fetch('/api/colheita/', { headers }),
+        fetch('/api/estoque/', { headers }),
+        fetch('/api/insumos/', { headers }),
+        fetch('/api/movimentacoes-insumo/', { headers }),
+      ])
 
     if (resLotes.ok) lotes.value = await resLotes.json()
     if (resCulturas.ok) culturas.value = await resCulturas.json()
     if (resColheitas.ok) colheitas.value = await resColheitas.json()
     if (resEstoque.ok) movimentacoesGerais.value = await resEstoque.json()
+    if (resInsumos.ok) insumos.value = await resInsumos.json()
+    if (resMovInsumo.ok) movimentacoesInsumo.value = await resMovInsumo.json()
 
     if (culturaSelecionada.value) {
       const atualizada = estoqueConsolidado.value.find(
         (item) => item.cultura_id === culturaSelecionada.value.cultura_id,
       )
       if (atualizada) culturaSelecionada.value = atualizada
+    }
+    if (insumoSelecionado.value) {
+      const atualizado = insumos.value.find((i) => i.id === insumoSelecionado.value.id)
+      if (atualizado) insumoSelecionado.value = atualizado
     }
   } catch (err) {
     toastStore.error('Erro ao sincronizar dados com o servidor.')
@@ -452,15 +714,29 @@ const carregarDadosBase = async () => {
   }
 }
 
+const trocarAba = (aba) => {
+  abaAtiva.value = aba
+  modoCadastro.value = false
+  culturaSelecionada.value = null
+  insumoSelecionado.value = null
+  busca.value = ''
+}
+
 const selecionarCultura = (item) => {
   culturaSelecionada.value = item
   modoCadastro.value = false
   limparFiltros()
 }
 
+const selecionarInsumo = (item) => {
+  insumoSelecionado.value = item
+  modoCadastro.value = false
+}
+
 const abrirFormulario = () => {
   modoCadastro.value = true
   culturaSelecionada.value = null
+  insumoSelecionado.value = null
 }
 
 const salvarMovimentacao = async () => {
@@ -485,6 +761,40 @@ const salvarMovimentacao = async () => {
       await carregarDadosBase()
     } else {
       toastStore.error('Erro ao registrar movimentação. Verifique o saldo do lote.')
+    }
+  } catch (err) {
+    toastStore.error('Falha de conexão ao salvar movimentação.')
+    console.error(err)
+  } finally {
+    salvando.value = false
+  }
+}
+
+const salvarMovimentacaoInsumo = async () => {
+  if (salvando.value) return
+  salvando.value = true
+
+  const token = localStorage.getItem('access_token')
+
+  try {
+    const res = await fetch('/api/movimentacoes-insumo/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(formInsumo.value),
+    })
+
+    if (res.ok) {
+      toastStore.success('Movimentação registrada com sucesso!')
+      formInsumo.value = {
+        insumo_id: '',
+        tipo_movimentacao: 'Entrada',
+        quantidade: 0.0,
+        motivo: '',
+      }
+      modoCadastro.value = false
+      await carregarDadosBase()
+    } else {
+      toastStore.error('Erro ao registrar movimentação. Verifique o saldo do insumo.')
     }
   } catch (err) {
     toastStore.error('Falha de conexão ao salvar movimentação.')
@@ -519,6 +829,31 @@ const excluirMovimentacao = async (id) => {
   }
 }
 
+const excluirMovimentacaoInsumo = async (id) => {
+  if (!confirm(`TEM CERTEZA? Deseja excluir permanentemente este registro do histórico?`)) return
+  excluindo.value = id
+  const token = localStorage.getItem('access_token')
+  try {
+    const res = await fetch(`/api/movimentacoes-insumo/${id}/`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (res.ok) {
+      toastStore.success('Registro excluído com sucesso!')
+      await carregarDadosBase()
+    } else {
+      const erro = await res.json()
+      toastStore.error(erro.error || 'Acesso negado ou erro ao excluir.')
+    }
+  } catch (err) {
+    toastStore.error('Falha de conexão ao excluir movimentação.')
+    console.error(err)
+  } finally {
+    excluindo.value = null
+  }
+}
+
 onMounted(() => {
   carregarDadosBase()
   verificarAcessos()
@@ -526,6 +861,35 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.tabs-bar {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #eee;
+}
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: #78909c;
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
+}
+.tab-btn:hover {
+  color: #37474f;
+}
+.tab-btn.active {
+  color: var(--cor-verde-primaria, #2e7d32);
+  border-bottom-color: var(--cor-verde-primaria, #2e7d32);
+}
+
 .header-container {
   display: flex;
   justify-content: space-between;
