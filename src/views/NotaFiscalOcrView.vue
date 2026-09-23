@@ -75,7 +75,9 @@
           <form v-else @submit.prevent="confirmarEntradaEstoque" class="form-revisao fade-in">
             <div class="form-row">
               <div class="form-field">
-                <label for="nf-numero">Número da Nota</label>
+                <label for="nf-numero"
+                  >Número da Nota <span class="campo-obrigatorio">*</span></label
+                >
                 <input
                   id="nf-numero"
                   v-model="dadosNota.numero"
@@ -85,7 +87,9 @@
                 />
               </div>
               <div class="form-field">
-                <label for="nf-data">Data de Emissão</label>
+                <label for="nf-data"
+                  >Data de Emissão <span class="campo-obrigatorio">*</span></label
+                >
                 <input
                   id="nf-data"
                   v-model="dadosNota.dataEmissao"
@@ -97,7 +101,7 @@
             </div>
 
             <div class="form-field">
-              <label for="nf-fornecedor">Fornecedor</label>
+              <label for="nf-fornecedor">Fornecedor <span class="campo-obrigatorio">*</span></label>
               <input
                 id="nf-fornecedor"
                 v-model="dadosNota.fornecedor"
@@ -108,16 +112,22 @@
             </div>
 
             <h4 class="section-subtitle">Itens Identificados</h4>
+            <p class="campos-obrigatorios-hint">
+              <span class="material-symbols-outlined">info</span>
+              Todos os campos, incluindo o <strong>Tipo</strong> de cada item, são obrigatórios para
+              confirmar a entrada em estoque.
+            </p>
 
             <!-- Tabela que vira Cards no Mobile -->
             <div class="table-responsive-wrapper">
               <table class="itens-table">
                 <thead>
                   <tr>
-                    <th>Descrição</th>
-                    <th width="100">Qtd</th>
-                    <th width="100">Unid</th>
-                    <th width="120">Valor (R$)</th>
+                    <th>Descrição <span class="campo-obrigatorio">*</span></th>
+                    <th width="100">Qtd <span class="campo-obrigatorio">*</span></th>
+                    <th width="100">Unid <span class="campo-obrigatorio">*</span></th>
+                    <th width="120">Valor (R$) <span class="campo-obrigatorio">*</span></th>
+                    <th width="150">Tipo <span class="campo-obrigatorio">*</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -130,6 +140,7 @@
                         v-model.number="item.quantidade"
                         type="number"
                         step="0.1"
+                        min="0.01"
                         required
                         :disabled="salvando"
                       />
@@ -142,9 +153,23 @@
                         v-model.number="item.valor"
                         type="number"
                         step="0.01"
+                        min="0"
                         required
                         :disabled="salvando"
                       />
+                    </td>
+                    <td data-label="Tipo">
+                      <select
+                        v-model="item.tipo"
+                        class="select-tipo"
+                        :class="{ 'select-tipo--vazio': !item.tipo }"
+                        required
+                        :disabled="salvando"
+                      >
+                        <option value="" disabled>Selecione...</option>
+                        <option value="insumo">Insumo</option>
+                        <option value="cultura">Cultura</option>
+                      </select>
                     </td>
                   </tr>
                 </tbody>
@@ -207,10 +232,13 @@ async function processarOcr() {
   formData.append('documento', arquivoSelecionado.value)
 
   try {
-    dadosNota.value = await apiClient('/estoque/ocr-nota-fiscal/', {
+    const resultado = await apiClient('/estoque/ocr-nota-fiscal/', {
       method: 'POST',
       body: formData,
     })
+    // O OCR não classifica os itens; o usuário escolhe 'insumo' ou 'cultura' aqui na revisão.
+    resultado.itens = (resultado.itens || []).map((item) => ({ tipo: '', ...item }))
+    dadosNota.value = resultado
     toastStore.success('Dados extraídos com sucesso!')
   } catch (err) {
     toastStore.info('Modo demonstração: aplicando dados simulados do OCR.')
@@ -222,8 +250,20 @@ async function processarOcr() {
         dataEmissao: '2026-09-01',
         fornecedor: 'AgroQuímica Soluções Rurais Ltda',
         itens: [
-          { descricao: 'Nitrato de Cálcio', quantidade: 50, unidade: 'kg', valor: 450.0 },
-          { descricao: 'Sulfato de Potássio', quantidade: 25, unidade: 'kg', valor: 310.5 },
+          {
+            descricao: 'Nitrato de Cálcio',
+            quantidade: 50,
+            unidade: 'kg',
+            valor: 450.0,
+            tipo: 'insumo',
+          },
+          {
+            descricao: 'Sulfato de Potássio',
+            quantidade: 25,
+            unidade: 'kg',
+            valor: 310.5,
+            tipo: 'insumo',
+          },
         ],
       }
       processando.value = false
@@ -234,8 +274,62 @@ async function processarOcr() {
   processando.value = false
 }
 
+const TIPOS_VALIDOS = ['insumo', 'cultura']
+
+function validarDadosNota() {
+  const dados = dadosNota.value
+  if (!dados.numero?.trim()) {
+    toastStore.error('Informe o número da nota.')
+    return false
+  }
+  if (!dados.dataEmissao) {
+    toastStore.error('Informe a data de emissão.')
+    return false
+  }
+  if (!dados.fornecedor?.trim()) {
+    toastStore.error('Informe o fornecedor.')
+    return false
+  }
+  if (!dados.itens?.length) {
+    toastStore.error('Adicione ao menos um item para confirmar a entrada em estoque.')
+    return false
+  }
+
+  for (let i = 0; i < dados.itens.length; i++) {
+    const item = dados.itens[i]
+    const numeroLinha = i + 1
+
+    if (!item.descricao?.trim()) {
+      toastStore.error(`Item ${numeroLinha}: informe a descrição.`)
+      return false
+    }
+    if (item.quantidade === null || item.quantidade === '' || Number(item.quantidade) <= 0) {
+      toastStore.error(`Item ${numeroLinha}: informe uma quantidade maior que zero.`)
+      return false
+    }
+    if (!item.unidade?.trim()) {
+      toastStore.error(`Item ${numeroLinha}: informe a unidade.`)
+      return false
+    }
+    if (item.valor === null || item.valor === '' || Number(item.valor) < 0) {
+      toastStore.error(`Item ${numeroLinha}: informe o valor.`)
+      return false
+    }
+    if (!TIPOS_VALIDOS.includes(item.tipo)) {
+      toastStore.error(
+        `Item ${numeroLinha} (${item.descricao}): selecione o Tipo — Insumo ou Cultura.`,
+      )
+      return false
+    }
+  }
+
+  return true
+}
+
 async function confirmarEntradaEstoque() {
   if (salvando.value) return
+  if (!validarDadosNota()) return
+
   salvando.value = true
   try {
     await apiClient('/estoque/confirmar-lote-nf/', {
@@ -245,8 +339,7 @@ async function confirmarEntradaEstoque() {
     toastStore.success('Estoque atualizado com sucesso!')
     cancelarOcr()
   } catch (err) {
-    toastStore.success('Lote validado e integrado à base!')
-    cancelarOcr()
+    toastStore.error(err?.message || 'Não foi possível confirmar a entrada em estoque.')
   } finally {
     salvando.value = false
   }
@@ -466,42 +559,104 @@ async function confirmarEntradaEstoque() {
   color: #455a64;
 }
 .form-field input,
-.itens-table input {
+.itens-table input,
+.itens-table select {
   padding: 0.6rem;
   border: 1px solid var(--cor-borda, #cfd8dc);
   border-radius: var(--radius-sm, 4px);
   font-size: 0.95rem;
   width: 100%;
   box-sizing: border-box;
-  transition: border-color 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
+  background-color: #fff;
+  color: #37474f;
+  font-family: inherit;
 }
 .form-field input:focus,
-.itens-table input:focus {
+.itens-table input:focus,
+.itens-table select:focus {
   outline: none;
   border-color: var(--cor-verde-primaria, #2e7d32);
+  box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.12);
 }
 .form-field input:disabled,
-.itens-table input:disabled {
+.itens-table input:disabled,
+.itens-table select:disabled {
   background: #f5f5f5;
   color: #999;
+  cursor: not-allowed;
+}
+
+/* Select customizado (remove aparência nativa do SO, alinhado ao resto do formulário) */
+.itens-table select.select-tipo {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path fill='%23546e7a' d='M7 10l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.1rem;
+}
+.itens-table select.select-tipo:disabled {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'><path fill='%23bdbdbd' d='M7 10l5 5 5-5z'/></svg>");
+}
+/* Reforça visualmente que o Tipo ainda não foi escolhido (obrigatório) */
+.itens-table select.select-tipo--vazio {
+  border-color: #ef9a9a;
+  color: #90a4ae;
+}
+.itens-table select.select-tipo--vazio:focus {
+  border-color: var(--cor-verde-primaria, #2e7d32);
+  color: #37474f;
+}
+
+.campo-obrigatorio {
+  color: #d32f2f;
+  font-weight: 700;
+}
+.campos-obrigatorios-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  color: #546e7a;
+  background: #f4f6f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  margin: 0.25rem 0 1rem 0;
+}
+.campos-obrigatorios-hint .material-symbols-outlined {
+  font-size: 1.1rem;
+  color: #546e7a;
 }
 
 .itens-table {
   width: 100%;
+  min-width: 640px;
   border-collapse: collapse;
   margin-bottom: 1.5rem;
 }
 .itens-table th {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: #546e7a;
   text-transform: uppercase;
-  padding-bottom: 0.5rem;
+  white-space: nowrap;
+  padding: 0 0.6rem 0.6rem 0.25rem;
   border-bottom: 2px solid #eee;
   text-align: left;
 }
 .itens-table td {
-  padding: 0.5rem 0.25rem;
+  padding: 0.5rem 0.6rem 0.5rem 0.25rem;
   border-bottom: 1px solid var(--cor-borda, #eee);
+}
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
 }
 
 /* Animações e Utilidades */

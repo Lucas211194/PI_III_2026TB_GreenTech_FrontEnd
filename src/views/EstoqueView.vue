@@ -428,8 +428,10 @@
           <!-- Histórico do Insumo -->
           <div v-else-if="insumoSelecionado && abaAtiva === 'insumos'" class="fade-in">
             <div class="detail-header" style="margin-bottom: 20px">
-              <h2>Histórico de Transações: {{ insumoSelecionado.nome }}</h2>
-              <p class="subtitle">Todas as movimentações registradas para este insumo.</p>
+              <div>
+                <h2>Histórico de Transações: {{ insumoSelecionado.nome }}</h2>
+                <p class="subtitle">Todas as movimentações registradas para este insumo.</p>
+              </div>
             </div>
 
             <div class="stats-grid">
@@ -500,6 +502,80 @@
                 </div>
               </div>
             </div>
+
+            <!-- Exclusão definitiva do Insumo: só admin/gerente e só com saldo zerado -->
+            <div
+              v-if="isGerente || isAdmin"
+              style="margin-top: 35px; padding-top: 20px; border-top: 1px dashed #ffcdd2"
+            >
+              <div
+                style="
+                  display: flex;
+                  justify-content: flex-end;
+                  align-items: center;
+                  gap: 12px;
+                  flex-wrap: wrap;
+                "
+              >
+                <p
+                  v-if="parseFloat(insumoSelecionado.quantidade_atual) !== 0"
+                  style="
+                    margin: 0;
+                    font-size: 0.85rem;
+                    color: #a15c00;
+                    flex: 1;
+                    min-width: 220px;
+                    text-align: right;
+                  "
+                >
+                  <span
+                    class="material-symbols-outlined"
+                    style="font-size: 1rem; vertical-align: -2px"
+                    >info</span
+                  >
+                  Zere o saldo deste insumo (exclua ou desfaça as movimentações até restar 0
+                  {{ insumoSelecionado.unidade }}) para poder excluí-lo definitivamente.
+                </p>
+                <button
+                  @click="excluirInsumo(insumoSelecionado)"
+                  :disabled="
+                    parseFloat(insumoSelecionado.quantidade_atual) !== 0 || excluindoInsumo
+                  "
+                  :title="
+                    parseFloat(insumoSelecionado.quantidade_atual) !== 0
+                      ? 'Só é possível excluir um insumo com saldo zerado'
+                      : 'Excluir este insumo definitivamente'
+                  "
+                  style="
+                    background: #c62828;
+                    color: white;
+                    padding: 10px 18px;
+                    border-radius: 8px;
+                    border: none;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    transition: background 0.2s;
+                    white-space: nowrap;
+                  "
+                  :style="
+                    parseFloat(insumoSelecionado.quantidade_atual) !== 0
+                      ? { background: '#e0e0e0', color: '#9e9e9e', cursor: 'not-allowed' }
+                      : {}
+                  "
+                >
+                  <span v-if="excluindoInsumo" class="material-symbols-outlined spinning"
+                    >autorenew</span
+                  >
+                  <span v-else class="material-symbols-outlined" style="font-size: 1.2rem"
+                    >delete_forever</span
+                  >
+                  {{ excluindoInsumo ? 'Excluindo...' : 'Excluir Insumo Definitivamente' }}
+                </button>
+              </div>
+            </div>
           </div>
 
           <!-- Empty State Inicial (Nada selecionado) -->
@@ -546,6 +622,7 @@ const isAdmin = ref(false)
 const carregando = ref(true)
 const salvando = ref(false)
 const excluindo = ref(null)
+const excluindoInsumo = ref(false)
 
 const lotes = ref([])
 const culturas = ref([])
@@ -851,6 +928,46 @@ const excluirMovimentacaoInsumo = async (id) => {
     console.error(err)
   } finally {
     excluindo.value = null
+  }
+}
+
+const excluirInsumo = async (insumo) => {
+  if (!insumo) return
+
+  if (parseFloat(insumo.quantidade_atual) !== 0) {
+    toastStore.error('Só é possível excluir um insumo com saldo zerado.')
+    return
+  }
+
+  if (
+    !confirm(
+      `TEM CERTEZA? Deseja excluir permanentemente o insumo "${insumo.nome}"?\n\nEsta ação não poderá ser desfeita.`,
+    )
+  ) {
+    return
+  }
+
+  excluindoInsumo.value = true
+  const token = localStorage.getItem('access_token')
+  try {
+    const res = await fetch(`/api/insumos/${insumo.id}/`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (res.ok) {
+      toastStore.success('Insumo excluído com sucesso!')
+      insumoSelecionado.value = null
+      await carregarDadosBase()
+    } else {
+      const erro = await res.json().catch(() => ({}))
+      toastStore.error(erro.error || 'Acesso negado ou erro ao excluir insumo.')
+    }
+  } catch (err) {
+    toastStore.error('Falha de conexão ao excluir insumo.')
+    console.error(err)
+  } finally {
+    excluindoInsumo.value = false
   }
 }
 
