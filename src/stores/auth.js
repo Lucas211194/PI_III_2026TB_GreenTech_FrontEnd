@@ -1,72 +1,79 @@
-/**
- * src/stores/auth.js
- */
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { apiClient } from '@/services/api'
+import apiClient from '@/services/api'
 
-export const useAuthStore = defineStore('auth', () => {
-  const usuario = ref(null)
-  const carregando = ref(false)
-  const accessToken = ref(localStorage.getItem('access_token'))
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    token: localStorage.getItem('access_token') || null,
+    refreshToken: localStorage.getItem('refresh_token') || null,
+    usuario: JSON.parse(localStorage.getItem('usuario') || 'null'),
+    perfil: null,
+  }),
 
-  const isAuthenticated = computed(() => !!accessToken.value)
+  getters: {
+    isAuthenticated: (state) => Boolean(state.token),
+    isAdmin: (state) => Boolean(state.perfil?.is_admin || state.usuario?.is_admin),
+    isGerente: (state) => Boolean(state.perfil?.is_gerente || state.usuario?.is_gerente),
+    dadosUsuario: (state) => state.perfil || state.usuario || {},
+  },
 
-  const isGerente = computed(() => {
-    if (!usuario.value) return false
-    return !!(
-      usuario.value.is_gerente ||
-      usuario.value.cargo === 'Gerente' ||
-      usuario.value.is_superuser
-    )
-  })
+  actions: {
+    setLoginData(dados) {
+      this.token = dados.access
+      this.refreshToken = dados.refresh
 
-  const isAdmin = computed(() => {
-    if (!usuario.value) return false
-    return !!(usuario.value.is_admin || usuario.value.is_staff || usuario.value.is_superuser)
-  })
+      localStorage.setItem('access_token', dados.access)
+      localStorage.setItem('refresh_token', dados.refresh)
 
-  async function carregarPerfil() {
-    if (!isAuthenticated.value) return null
-    if (usuario.value) return usuario.value
+      if (dados.usuario) {
+        this.usuario = dados.usuario
+        localStorage.setItem('usuario', JSON.stringify(dados.usuario))
+      }
+    },
 
-    try {
-      carregando.value = true
-      const data = await apiClient('/funcionarios/me/')
-      usuario.value = data
-      return data
-    } catch (err) {
-      console.warn('Não foi possível sincronizar o perfil com o backend.')
-      return null
-    } finally {
-      carregando.value = false
-    }
-  }
+    async carregarPerfil() {
+      if (!this.token) return null
 
-  function setLoginData(tokens, dadosUsuario = null) {
-    if (tokens.access) {
-      localStorage.setItem('access_token', tokens.access)
-      accessToken.value = tokens.access
-    }
-    if (tokens.refresh) localStorage.setItem('refresh_token', tokens.refresh)
-    if (dadosUsuario) usuario.value = dadosUsuario
-  }
+      try {
+        const res = await apiClient.get('/funcionarios/me/')
+        this.perfil = res.data
+        this.usuario = {
+          ...this.usuario,
+          ...res.data,
+        }
+        localStorage.setItem('usuario', JSON.stringify(this.usuario))
+        return res.data
+      } catch (err) {
+        console.error('Erro ao carregar dados do perfil:', err)
+        return null
+      }
+    },
 
-  function logout() {
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('refresh_token')
-    accessToken.value = null
-    usuario.value = null
-  }
+    async logout() {
+      const refresh = this.refreshToken || localStorage.getItem('refresh_token')
 
-  return {
-    usuario,
-    carregando,
-    isAuthenticated,
-    isGerente,
-    isAdmin,
-    carregarPerfil,
-    setLoginData,
-    logout,
-  }
+      if (refresh) {
+        try {
+          await apiClient.post('/logout/', { refresh })
+        } catch (err) {
+          // Falhas de rede na chamada de blacklist não bloqueiam a saída local
+          console.warn('Não foi possível invalidar o token no servidor:', err)
+        }
+      }
+
+      this.token = null
+      this.refreshToken = null
+      this.usuario = null
+      this.perfil = null
+
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('usuario')
+
+      if (window.location.pathname !== '/') {
+        window.location.href = '/'
+      }
+    },
+  },
 })
+
+export default useAuthStore

@@ -1,23 +1,26 @@
-/**
- * src/assets/JS/verificarPermissao.js
- */
-import { apiClient } from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
+/**
+ * Utilitário para verificar permissões do usuário logado.
+ * Lê diretamente do useAuthStore (evitando requisições desnecessárias)
+ * e mantém a assinatura de retorno esperada pelas views legadas.
+ *
+ * @returns {Promise<{ isAdmin: boolean, isGerente: boolean, usuario: Object }>}
+ */
 export async function verificarPermissao() {
-  try {
-    const data = await apiClient('/funcionarios/me/')
-    return {
-      isAdmin: !!(data.is_admin || data.is_staff || data.is_superuser),
-      isGerente: !!(data.is_gerente || data.cargo === 'Gerente' || data.is_superuser),
-      usuario: data
-    }
-  } catch (error) {
-    console.warn('Verificação de permissão falhou via endpoint:', error.message)
-    return {
-      isAdmin: false,
-      isGerente: false,
-      usuario: null
-    }
+  const authStore = useAuthStore()
+
+  // Se o perfil ainda não foi carregado na memória, tenta carregar
+  if (!authStore.perfil && authStore.token) {
+    await authStore.carregarPerfil()
+  }
+
+  const usuario = authStore.dadosUsuario
+
+  return {
+    isAdmin: Boolean(authStore.isAdmin),
+    isGerente: Boolean(authStore.isGerente),
+    usuario: usuario || {},
   }
 }
 

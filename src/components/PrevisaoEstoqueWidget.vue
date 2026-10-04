@@ -1,55 +1,85 @@
 <template>
-  <div class="previsao-estoque-card">
-    <div class="card-header">
-      <div class="title-area">
-        <h3>Previsão de Término de Insumos (IA Prophet)</h3>
-        <span class="badge-ia" :class="{ 'badge-mock': isMock }">
-          {{ isMock ? 'Simulação Local' : 'Modelo Prophet Ativo' }}
-        </span>
+  <div class="previsao-estoque-widget">
+    <div class="widget-header">
+      <div class="titulo-grupo">
+        <span class="material-symbols-outlined icone-widget">trending_down</span>
+        <div>
+          <h3>Previsão de Esgotamento de Estoque</h3>
+          <p class="subtitulo">Análise preditiva de demanda baseada no modelo Prophet</p>
+        </div>
       </div>
-      <button 
-        type="button" 
-        class="btn-refresh" 
-        @click="buscarPrevisao" 
+      <button
+        v-if="FEATURES.previsaoEstoque"
+        class="btn-recarregar"
         :disabled="carregando"
-        aria-label="Atualizar projeções"
+        title="Atualizar previsões"
+        @click="carregarPrevisoes"
       >
-        🔄
+        <span class="material-symbols-outlined" :class="{ 'anim-spin': carregando }">refresh</span>
       </button>
     </div>
 
-    <div v-if="carregando" class="loading-state">
-      <div class="spinner"></div>
-      <p>Executando projeções de consumo...</p>
-    </div>
+    <!-- FLAG DESLIGADA: MÓDULO EM STAND-BY -->
+    <RecursoIndisponivel
+      v-if="!FEATURES.previsaoEstoque"
+      icone="query_stats"
+      titulo="Previsão de Estoque em Stand-by"
+      mensagem="As estimativas preditivas de consumo serão liberadas assim que o back-end disponibilizar a rota /estoque/previsao-prophet/."
+    />
 
-    <div v-else class="previsao-grid">
-      <div v-for="item in insumosPrevistos" :key="item.id" class="insumo-card">
-        <div class="insumo-info">
-          <h4>{{ item.nome }}</h4>
-          <span class="categoria">{{ item.categoria }}</span>
-        </div>
+    <!-- FLAG LIGADA: OPERAÇÃO REAL -->
+    <div v-else class="widget-conteudo">
+      <!-- CARREGANDO -->
+      <div v-if="carregando" class="loading-state">
+        <div class="spinner"></div>
+        <p>Calculando projeções de consumo...</p>
+      </div>
 
-        <div class="insumo-metricas">
-          <div>
-            <span class="label">Qtd Atual:</span>
-            <strong>{{ item.quantidadeAtual }} {{ item.unidade }}</strong>
+      <!-- ERRO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarPrevisoes"
+      />
+
+      <!-- LISTA DE ITENS PREDITOS -->
+      <div v-else-if="previsoes.length > 0" class="lista-previsoes">
+        <div v-for="item in previsoes" :key="item.id" class="card-item-previsao">
+          <div class="item-cabecalho">
+            <div>
+              <h4 class="item-nome">{{ item.nome }}</h4>
+              <span class="item-categoria">{{ item.categoria || 'Geral' }}</span>
+            </div>
+            <span :class="['badge-dias', classeCriticidade(item.diasRestantes)]">
+              {{ formatarDiasRestantes(item.diasRestantes) }}
+            </span>
           </div>
-          <div>
-            <span class="label">Esgotamento Estimado:</span>
-            <strong :class="getUrgenciaClass(item.diasRestantes)">
-              {{ item.dataEstimada }} ({{ item.diasRestantes }} dias)
-            </strong>
+
+          <div class="item-barra-wrapper">
+            <div class="barra-fundo">
+              <div
+                class="barra-preenchimento"
+                :class="classeBarra(item.percentualRestante)"
+                :style="{ width: `${Math.min(Math.max(item.percentualRestante || 0, 0), 100)}%` }"
+              ></div>
+            </div>
+          </div>
+
+          <div class="item-rodape">
+            <span class="saldo-atual">
+              Saldo: <strong>{{ parseNumero(item.quantidadeAtual).toFixed(2) }} {{ item.unidade }}</strong>
+            </span>
+            <span v-if="item.dataEstimada" class="data-estimada">
+              Zero estimado em: {{ formatarData(item.dataEstimada) }}
+            </span>
           </div>
         </div>
+      </div>
 
-        <div class="progresso-container">
-          <div 
-            class="progresso-bar" 
-            :style="{ width: `${item.percentualRestante}%` }"
-            :class="getUrgenciaClass(item.diasRestantes)"
-          ></div>
-        </div>
+      <!-- VAZIO -->
+      <div v-else class="empty-state">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <p>Nenhuma projeção de esgotamento emitida pelo servidor no momento.</p>
       </div>
     </div>
   </div>
@@ -57,185 +87,250 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { apiClient } from '@/services/api'
+import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import apiClient from '@/services/api'
+import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { FEATURES } from '@/config/features'
 
-const insumosPrevistos = ref([])
+const previsoes = ref([])
 const carregando = ref(false)
-const isMock = ref(false)
+const erroCarregamento = ref('')
 
-async function buscarPrevisao() {
+async function carregarPrevisoes() {
+  if (!FEATURES.previsaoEstoque) return
+
   carregando.value = true
+  erroCarregamento.value = ''
+
   try {
-    // Endpoint Plug-and-Play: se o back-end já tiver o Prophet, recebe os dados reais
-    const data = await apiClient('/estoque/previsao-prophet/')
-    insumosPrevistos.value = data
-    isMock.value = false
+    const res = await apiClient.get('/estoque/previsao-prophet/')
+    previsoes.value = extrairLista(res.data)
   } catch (err) {
-    // Fallback gracioso: gera a projeção sem quebrar a interface
-    isMock.value = true
-    insumosPrevistos.value = [
-      {
-        id: 1,
-        nome: 'Fertilizante NPK 10-10-10',
-        categoria: 'Nutrição',
-        quantidadeAtual: 140,
-        unidade: 'kg',
-        diasRestantes: 12,
-        dataEstimada: '14/09/2026',
-        percentualRestante: 25
-      },
-      {
-        id: 2,
-        nome: 'Substrato Orgânico Turbinado',
-        categoria: 'Solo',
-        quantidadeAtual: 620,
-        unidade: 'sacos',
-        diasRestantes: 45,
-        dataEstimada: '17/10/2026',
-        percentualRestante: 70
-      },
-      {
-        id: 3,
-        nome: 'Biofungicida Trichoderma',
-        categoria: 'Defensivo',
-        quantidadeAtual: 8,
-        unidade: 'L',
-        diasRestantes: 4,
-        dataEstimada: '06/09/2026',
-        percentualRestante: 10
-      }
-    ]
+    erroCarregamento.value = mensagemDeErro(
+      err,
+      'Não foi possível obter os dados de previsão de estoque.',
+    )
   } finally {
     carregando.value = false
   }
 }
 
-function getUrgenciaClass(dias) {
-  if (dias <= 5) return 'status-critico'
-  if (dias <= 15) return 'status-alerta'
-  return 'status-normal'
+function formatarDiasRestantes(dias) {
+  const d = Number(dias)
+  if (Number.isNaN(d)) return 'Indefinido'
+  if (d <= 0) return 'Esgotado'
+  if (d === 1) return '1 dia restante'
+  return `${d} dias restantes`
+}
+
+function classeCriticidade(dias) {
+  const d = Number(dias)
+  if (Number.isNaN(d) || d > 15) return 'criticidade-baixa'
+  if (d > 7) return 'criticidade-media'
+  return 'criticidade-alta'
+}
+
+function classeBarra(percentual) {
+  const p = Number(percentual)
+  if (Number.isNaN(p) || p > 50) return 'barra-verde'
+  if (p > 25) return 'barra-amarela'
+  return 'barra-vermelha'
+}
+
+function formatarData(dataStr) {
+  if (!dataStr) return '-'
+  const d = new Date(dataStr)
+  if (Number.isNaN(d.getTime())) return dataStr
+  return d.toLocaleDateString('pt-BR')
 }
 
 onMounted(() => {
-  buscarPrevisao()
+  carregarPrevisoes()
 })
 </script>
 
 <style scoped>
-.previsao-estoque-card {
-  background: var(--cor-fundo-card, #ffffff);
+.previsao-estoque-widget {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-lg, 12px);
   padding: 1.5rem;
-  box-shadow: var(--sombra-card, 0 4px 6px -1px rgba(0, 0, 0, 0.1));
-  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.card-header {
+.widget-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 1.25rem;
 }
 
-.title-area {
+.titulo-grupo {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.badge-ia {
-  background: var(--cor-verde-primaria, #2e7d32);
-  color: #fff;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 20px;
-  font-weight: bold;
+.icone-widget {
+  font-size: 28px;
+  color: var(--color-primary, #16a34a);
 }
 
-.badge-mock {
-  background: var(--cor-alerta-amarelo, #f57c00);
+.widget-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--color-text, #1e293b);
 }
 
-.btn-refresh {
-  background: transparent;
-  border: none;
+.subtitulo {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.btn-recarregar {
+  background: none;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  padding: 0.35rem;
   cursor: pointer;
-  font-size: 1.1rem;
+  color: var(--color-text-muted, #64748b);
+  display: flex;
+  align-items: center;
 }
 
-.previsao-grid {
+.btn-recarregar:hover {
+  background-color: var(--color-background, #f8fafc);
+  color: var(--color-text, #1e293b);
+}
+
+.anim-spin {
+  animation: spin 1s linear infinite;
+}
+
+.lista-previsoes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
-  gap: 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
 }
 
-.insumo-card {
-  border: 1px solid var(--cor-borda, #e0e0e0);
+.card-item-previsao {
+  background: var(--color-background, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-md, 8px);
   padding: 1rem;
-  background: var(--cor-fundo-item, #fafafa);
-}
-
-.insumo-info h4 {
-  margin: 0;
-  color: var(--cor-texto-principal, #263238);
-}
-
-.categoria {
-  font-size: 0.8rem;
-  color: var(--cor-texto-secundario, #607d8b);
-}
-
-.insumo-metricas {
-  margin: 0.75rem 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  font-size: 0.85rem;
+  gap: 0.75rem;
 }
 
-.progresso-container {
-  height: 8px;
-  background: #e0e0e0;
-  border-radius: 4px;
+.item-cabecalho {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.item-nome {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--color-text, #1e293b);
+}
+
+.item-categoria {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.badge-dias {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.criticidade-baixa {
+  background-color: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.criticidade-media {
+  background-color: rgba(237, 108, 2, 0.12);
+  color: #ed6c02;
+}
+
+.criticidade-alta {
+  background-color: rgba(211, 47, 47, 0.12);
+  color: #d32f2f;
+}
+
+.item-barra-wrapper {
+  width: 100%;
+}
+
+.barra-fundo {
+  width: 100%;
+  height: 6px;
+  background-color: #e2e8f0;
+  border-radius: 3px;
   overflow: hidden;
 }
 
-.progresso-bar {
+.barra-preenchimento {
   height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
 }
 
-.status-critico {
-  color: var(--cor-alerta-erro, #d32f2f) !important;
-  background-color: var(--cor-alerta-erro, #d32f2f);
+.barra-verde {
+  background-color: #16a34a;
 }
 
-.status-alerta {
-  color: var(--cor-alerta-amarelo, #f57c00) !important;
-  background-color: var(--cor-alerta-amarelo, #f57c00);
+.barra-amarela {
+  background-color: #f59e0b;
 }
 
-.status-normal {
-  color: var(--cor-verde-primaria, #2e7d32) !important;
-  background-color: var(--cor-verde-primaria, #2e7d32);
+.barra-vermelha {
+  background-color: #ef4444;
 }
 
-.loading-state {
+.item-rodape {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.item-rodape strong {
+  color: var(--color-text, #1e293b);
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
   text-align: center;
-  padding: 2rem;
+  color: var(--color-text-muted, #64748b);
 }
 
 .spinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid #ccc;
-  border-top-color: var(--cor-verde-primaria, #2e7d32);
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #16a34a);
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin: 0 auto 0.5rem auto;
+  margin-bottom: 0.75rem;
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

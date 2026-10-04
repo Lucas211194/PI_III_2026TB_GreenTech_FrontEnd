@@ -115,7 +115,8 @@
 </template>
 
 <script setup>
-import { apiClient } from '@/services/api'
+import apiClient from '@/services/api'
+import { mensagemDeErro } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import { onMounted, ref } from 'vue'
@@ -156,12 +157,9 @@ async function handleLogin() {
   carregando.value = true
 
   try {
-    const data = await apiClient('/token/', {
-      method: 'POST',
-      body: JSON.stringify({
-        username: username.value,
-        password: password.value,
-      }),
+    const { data } = await apiClient.post('/token/', {
+      username: username.value,
+      password: password.value,
     })
 
     if (lembrarUsuario.value) {
@@ -174,7 +172,7 @@ async function handleLogin() {
     toastStore.success('Bem-vindo ao GreenTech!')
     router.push({ name: 'dashboard' })
   } catch (error) {
-    toastStore.error(error.message || 'Credenciais inválidas.')
+    toastStore.error(mensagemDeErro(error, 'Credenciais inválidas.'))
   } finally {
     carregando.value = false
   }

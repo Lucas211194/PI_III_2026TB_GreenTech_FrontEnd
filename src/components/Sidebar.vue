@@ -1,243 +1,195 @@
 <template>
-  <aside
-    id="sidebar-nav"
-    :class="['sidebar-nav', { 'mobile-open': isOpen, 'touch-expanded': touchExpanded }]"
-    aria-label="Navegação Principal"
-  >
-    <div class="sidebar-header">
-      <span class="brand-title">GreenTech</span>
-      <button
-        type="button"
-        class="btn-close-mobile"
-        @click="close"
-        aria-label="Fechar menu lateral"
-        :aria-expanded="isOpen"
-        aria-controls="sidebar-nav"
-      >
-        <span aria-hidden="true">&times;</span>
-      </button>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <span class="material-symbols-outlined brand-icon">psychiatry</span>
+      <span class="brand-text">GreenTech</span>
     </div>
 
-    <nav aria-label="Menu principal">
-      <ul class="nav-list" role="menu">
-        <li class="nav-item" role="none">
-          <RouterLink to="/dashboard" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">dashboard</span>
-            <span class="label">Dashboard</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/culturas" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">eco</span>
-            <span class="label">Culturas</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/lotes" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">layers</span>
-            <span class="label">Lotes</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/colheitas" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">agriculture</span>
-            <span class="label">Colheitas</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/sensores" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">sensors</span>
-            <span class="label">Sensores</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/irrigacao" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">water_drop</span>
-            <span class="label">Irrigação</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/estoque" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">inventory_2</span>
-            <span class="label">Estoque</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/ocr-notas" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">receipt_long</span>
-            <span class="label">Importar NF (OCR)</span>
-          </RouterLink>
-        </li>
-        <li class="nav-item" role="none">
-          <RouterLink to="/alertas" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">notifications</span>
-            <span class="label">Alertas</span>
-          </RouterLink>
-        </li>
+    <nav class="sidebar-nav">
+      <RouterLink to="/dashboard" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">dashboard</span>
+        <span class="nav-label">Dashboard</span>
+      </RouterLink>
 
-        <li v-if="authStore.isGerente || authStore.isAdmin" class="nav-item" role="none">
-          <RouterLink to="/historico" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">history</span>
-            <span class="label">Auditoria & Histórico</span>
-          </RouterLink>
-        </li>
+      <RouterLink to="/culturas" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">potted_plant</span>
+        <span class="nav-label">Culturas</span>
+      </RouterLink>
 
-        <li class="nav-item" role="none">
-          <RouterLink to="/perfil" class="nav-link" @click="handleNavClick" role="menuitem">
-            <span class="material-symbols-outlined icon" aria-hidden="true">person</span>
-            <span class="label">Meu Perfil</span>
-          </RouterLink>
-        </li>
-      </ul>
+      <RouterLink to="/lotes" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">yard</span>
+        <span class="nav-label">Lotes</span>
+      </RouterLink>
+
+      <RouterLink to="/colheitas" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">agriculture</span>
+        <span class="nav-label">Colheitas</span>
+      </RouterLink>
+
+      <RouterLink to="/estoque" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">inventory_2</span>
+        <span class="nav-label">Estoque</span>
+      </RouterLink>
+
+      <RouterLink to="/sensores" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">sensors</span>
+        <span class="nav-label">Sensores</span>
+      </RouterLink>
+
+      <RouterLink to="/alertas" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">warning</span>
+        <span class="nav-label">Alertas</span>
+      </RouterLink>
+
+      <RouterLink to="/irrigacao" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">water_drop</span>
+        <span class="nav-label">Irrigação</span>
+      </RouterLink>
+
+      <RouterLink to="/layout" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">grid_view</span>
+        <span class="nav-label">Layout Estufas</span>
+      </RouterLink>
+
+      <RouterLink to="/ocr-notas" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">document_scanner</span>
+        <span class="nav-label">Importar NF</span>
+      </RouterLink>
+
+      <RouterLink
+        v-if="authStore.isGerente || authStore.isAdmin"
+        to="/historico"
+        class="nav-item"
+        active-class="active"
+      >
+        <span class="material-symbols-outlined">history</span>
+        <span class="nav-label">Auditoria</span>
+      </RouterLink>
+
+      <RouterLink to="/perfil" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">person</span>
+        <span class="nav-label">Perfil</span>
+      </RouterLink>
+
+      <RouterLink to="/configuracoes" class="nav-item" active-class="active">
+        <span class="material-symbols-outlined">settings</span>
+        <span class="nav-label">Configurações</span>
+      </RouterLink>
     </nav>
 
     <div class="sidebar-footer">
-      <button type="button" class="nav-link btn-logout" @click="handleLogout">
-        <span class="material-symbols-outlined icon" aria-hidden="true">logout</span>
-        <span class="label">Sair</span>
+      <button type="button" class="btn-logout" @click="handleLogout">
+        <span class="material-symbols-outlined">logout</span>
+        <span class="nav-label">Sair</span>
       </button>
     </div>
   </aside>
 </template>
 
 <script setup>
-import { useSidebar } from '@/composables/useSidebar'
+import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { RouterLink, useRouter } from 'vue-router'
 
 const authStore = useAuthStore()
-const router = useRouter()
-// Extraindo propriedades do composable
-const { isOpen, close, touchExpanded } = useSidebar()
 
-function handleNavClick() {
-  close()
-}
-
-function handleLogout() {
-  authStore.logout()
-  close()
-  router.push({ name: 'login' })
+async function handleLogout() {
+  await authStore.logout()
 }
 </script>
 
 <style scoped>
-.sidebar-nav {
-  width: 240px;
-  background-color: var(--cor-fundo-sidebar, #1b5e20);
-  color: #ffffff;
+.sidebar {
+  width: 250px;
+  height: 100vh;
+  background-color: var(--color-surface, #ffffff);
+  border-right: 1px solid var(--color-border, #e2e8f0);
   display: flex;
   flex-direction: column;
-  transition:
-    width 0.3s ease,
-    transform 0.3s ease;
-  z-index: 1000;
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 100;
 }
 
-.sidebar-header {
-  padding: 1.5rem 1rem;
+.sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.5rem 1.25rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
 
-.brand-title {
+.brand-icon {
+  font-size: 2rem;
+  color: var(--color-primary, #16a34a);
+}
+
+.brand-text {
   font-size: 1.25rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  color: var(--color-text, #1e293b);
+  letter-spacing: -0.025em;
 }
 
-.btn-close-mobile {
-  display: none;
-  background: transparent;
-  border: none;
-  color: #fff;
-  font-size: 1.75rem;
-  cursor: pointer;
-}
-
-.btn-close-mobile:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 2px;
-  border-radius: 4px;
-}
-
-.nav-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+.sidebar-nav {
+  flex: 1;
+  padding: 1rem 0.75rem;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
 
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-text-muted, #64748b);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.nav-item .material-symbols-outlined {
+  font-size: 1.35rem;
+}
+
+.nav-item:hover {
+  background-color: var(--color-background, #f8fafc);
+  color: var(--color-text, #1e293b);
+}
+
+.nav-item.active {
+  background-color: rgba(22, 163, 74, 0.1);
+  color: var(--color-primary, #16a34a);
+  font-weight: 600;
+}
+
 .sidebar-footer {
-  margin-top: auto;
-  padding: 0.75rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1rem 0.75rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
 }
 
 .btn-logout {
   width: 100%;
-  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.75rem;
   border: none;
+  background: none;
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-danger, #ef4444);
+  font-size: 0.9rem;
+  font-weight: 500;
   cursor: pointer;
-  border-radius: 8px;
-  font-family: inherit;
+  transition: background-color 0.2s ease;
 }
 
 .btn-logout:hover {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-.btn-logout:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: -2px;
-}
-
-.nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.75rem 1.25rem;
-  color: rgba(255, 255, 255, 0.85);
-  text-decoration: none;
-  font-size: 0.95rem;
-  transition: background-color 0.2s;
-}
-
-.nav-link:hover,
-.nav-link.router-link-active {
-  background-color: rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-}
-
-.nav-link:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: -2px;
-}
-
-.icon {
-  font-size: 1.15rem;
-}
-
-@media (max-width: 1024px) {
-  .sidebar-nav {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    transform: translateX(-100%);
-    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.25);
-  }
-
-  .sidebar-nav.mobile-open {
-    transform: translateX(0);
-  }
-
-  .btn-close-mobile {
-    display: block;
-  }
+  background-color: rgba(239, 68, 68, 0.08);
 }
 </style>

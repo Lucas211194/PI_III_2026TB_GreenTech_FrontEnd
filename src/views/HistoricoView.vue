@@ -1,296 +1,478 @@
 <template>
-  <PageLayout
-    title="Auditoria Geral & Rastreabilidade"
-    subtitle="Registro imutável de ações executadas pelos operadores e pelo sistema."
-  >
-    <template #header-actions>
-      <div class="filtro-auditoria">
-        <label for="filtro-modulo" class="sr-only">Filtrar por Módulo</label>
-        <select id="filtro-modulo" v-model="moduloFiltro" class="select-touch" @change="carregarAuditoria">
-          <option value="todos">Todos os Módulos</option>
-          <option value="ESTOQUE">Estoque</option>
-          <option value="IRRIGACAO">Irrigação</option>
-          <option value="CULTURA">Culturas & Lotes</option>
-          <option value="SEGURANCA">Acesso & Autenticação</option>
-        </select>
-      </div>
-    </template>
+  <div class="historico-view">
+    <DashHeader
+      title="Histórico de Auditoria"
+      subtitle="Registro de operações e alterações administrativas realizadas no sistema"
+    />
 
-    <!-- Visualização Híbrida: Tabela no Desktop / Cards no Mobile -->
-    <section class="auditoria-content">
-      <div v-if="carregando" class="state-placeholder">Carregando registros de auditoria...</div>
+    <div class="historico-container">
+      <!-- BARRA DE FILTROS E BUSCA -->
+      <div class="toolbar-filtros">
+        <div class="filtros-grupo">
+          <div class="busca-wrapper">
+            <span class="material-symbols-outlined icone-busca">search</span>
+            <input
+              v-model="termoBusca"
+              type="text"
+              placeholder="Buscar por usuário, detalhes ou registro..."
+              class="input-busca"
+            />
+          </div>
 
-      <div v-else-if="registros.length === 0" class="state-placeholder">
-        Nenhum evento registrado para o período solicitado.
-      </div>
+          <select v-model="filtroModulo" class="select-filtro">
+            <option value="">Todos os módulos</option>
+            <option v-for="mod in modulosDisponiveis" :key="mod" :value="mod">
+              {{ mod }}
+            </option>
+          </select>
 
-      <div v-else class="tabela-responsiva-cards">
-        <table class="tabela-base">
-          <thead>
-            <tr>
-              <th scope="col">Data/Hora</th>
-              <th scope="col">Usuário</th>
-              <th scope="col">Módulo</th>
-              <th scope="col">Ação</th>
-              <th scope="col">Detalhes</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in registros" :key="item.id" class="registro-item">
-              <td data-label="Data/Hora" class="col-data">{{ item.dataHora }}</td>
-              <td data-label="Usuário" class="col-usuario">
-                <strong>{{ item.usuario }}</strong>
-              </td>
-              <td data-label="Módulo" class="col-modulo">
-                <span class="badge-modulo">{{ item.modulo }}</span>
-              </td>
-              <td data-label="Ação" class="col-acao">{{ item.acao }}</td>
-              <td data-label="Detalhes" class="col-detalhes">{{ item.detalhes }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+          <select v-model="filtroAcao" class="select-filtro">
+            <option value="">Todas as ações</option>
+            <option value="ADICIONOU">Adicionou</option>
+            <option value="MODIFICOU">Modificou</option>
+            <option value="DELETOU">Deletou</option>
+          </select>
+        </div>
 
-      <!-- Paginação Ergonômica Mobile (44px target) -->
-      <footer class="paginacao-footer">
-        <button
-          type="button"
-          class="btn-pagina"
-          :disabled="paginaAtual === 1"
-          @click="mudarPagina(-1)"
-          aria-label="Página Anterior"
-        >
-          ⬅ Anterior
+        <button class="btn-atualizar" :disabled="carregando" @click="carregarHistorico">
+          <span class="material-symbols-outlined" :class="{ 'anim-spin': carregando }">refresh</span>
+          Atualizar
         </button>
-        <span class="pagina-indicador">Página {{ paginaAtual }} de {{ totalPaginas }}</span>
-        <button
-          type="button"
-          class="btn-pagina"
-          :disabled="paginaAtual >= totalPaginas"
-          @click="mudarPagina(1)"
-          aria-label="Próxima Página"
-        >
-          Próxima ➡
-        </button>
-      </footer>
-    </section>
-  </PageLayout>
+      </div>
+
+      <!-- CARREGANDO -->
+      <div v-if="carregando" class="loading-state">
+        <div class="spinner"></div>
+        <p>Carregando registros de auditoria...</p>
+      </div>
+
+      <!-- PERMISSÃO NEGADA (403) -->
+      <div v-else-if="semPermissao" class="alerta-permissao" role="alert">
+        <span class="material-symbols-outlined icone-alerta">lock</span>
+        <h3>Acesso Restrito ao Histórico</h3>
+        <p>Seu perfil de usuário ainda não possui permissão de auditoria configurada no servidor.</p>
+        <span class="detalhe-permissao">
+          Atualmente o back-end restringe a rota /funcionarios/auditoria/ a administradores (superuser).
+        </span>
+      </div>
+
+      <!-- ERRO GENÉRICO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarHistorico"
+      />
+
+      <!-- LISTAGEM EM TABELA -->
+      <div v-else-if="itensPaginados.length > 0" class="tabela-card">
+        <div class="tabela-responsive">
+          <table class="tabela-auditoria">
+            <thead>
+              <tr>
+                <th width="160">Data / Hora</th>
+                <th width="140">Usuário</th>
+                <th width="120">Ação</th>
+                <th width="150">Módulo (Tabela)</th>
+                <th width="100">Registro</th>
+                <th>Detalhes da Operação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="log in itensPaginados" :key="log.id_log || log.id">
+                <td class="font-mono">{{ formatarDataHora(log.data_hora) }}</td>
+                <td class="font-destaque">{{ log.usuario || '-' }}</td>
+                <td>
+                  <span :class="['badge-acao', `acao-${String(log.acao || '').toLowerCase()}`]">
+                    {{ log.acao || 'AÇÃO' }}
+                  </span>
+                </td>
+                <td>{{ log.tabela_afetada || '-' }}</td>
+                <td class="font-mono">#{{ log.registro_afetado || '-' }}</td>
+                <td class="col-detalhes">{{ log.detalhes || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- PAGINAÇÃO -->
+        <div v-if="totalPaginas > 1" class="paginacao-footer">
+          <span class="info-paginacao">
+            Página {{ paginaAtual }} de {{ totalPaginas }} ({{ logsFiltrados.length }} registros)
+          </span>
+          <div class="botoes-paginacao">
+            <button
+              class="btn-pag"
+              :disabled="paginaAtual === 1"
+              @click="paginaAtual--"
+            >
+              Anterior
+            </button>
+            <button
+              class="btn-pag"
+              :disabled="paginaAtual === totalPaginas"
+              @click="paginaAtual++"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ESTADO VAZIO -->
+      <div v-else class="empty-state">
+        <span class="material-symbols-outlined empty-icon">history_edu</span>
+        <h3>Nenhum registro de auditoria encontrado</h3>
+        <p>
+          O histórico registra ações administrativas realizadas através do painel de controle do servidor.
+        </p>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { apiClient } from '@/services/api'
-import PageLayout from '@/components/PageLayout.vue'
+import { ref, computed, onMounted } from 'vue'
+import DashHeader from '@/components/DashHeader.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import apiClient from '@/services/api'
+import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
+import { useToastStore } from '@/stores/toast'
 
-/**
- * CONTRATO DE DADOS PARA O DESENVOLVEDOR BACK-END:
- * GET /api/funcionarios/auditoria/?modulo={moduloFiltro}&pagina={paginaAtual}
- * Resposta esperada:
- * { resultados: Array<{ id: number, dataHora: string, usuario: string, modulo: string, acao: string, detalhes: string }>, totalPaginas: number }
- */
-const registros = ref([])
+const toastStore = useToastStore()
+
+const logs = ref([])
 const carregando = ref(false)
-const moduloFiltro = ref('todos')
-const paginaAtual = ref(1)
-const totalPaginas = ref(1)
+const semPermissao = ref(false)
+const erroCarregamento = ref('')
 
-async function carregarAuditoria() {
+const termoBusca = ref('')
+const filtroModulo = ref('')
+const filtroAcao = ref('')
+
+const paginaAtual = ref(1)
+const itensPorPagina = 20
+
+async function carregarHistorico() {
   carregando.value = true
+  semPermissao.value = false
+  erroCarregamento.value = ''
+
   try {
-    const data = await apiClient(
-      `/funcionarios/auditoria/?modulo=${moduloFiltro.value}&page=${paginaAtual.value}`,
-    )
-    registros.value = data.resultados || data
-    totalPaginas.value = data.totalPaginas || 1
+    const res = await apiClient.get('/funcionarios/auditoria/')
+    logs.value = extrairLista(res.data)
   } catch (err) {
-    // Fallback de contingência caso endpoint do DRF ainda esteja em validação de superuser
-    registros.value = [
-      {
-        id: 101,
-        dataHora: '02/09/2026 16:45',
-        usuario: 'lucas.souza',
-        modulo: 'IRRIGACAO',
-        acao: 'Disparo Manual',
-        detalhes: 'Válvula Setor 01 acionada por 15 minutos.',
-      },
-      {
-        id: 102,
-        dataHora: '02/09/2026 14:10',
-        usuario: 'sistema.ia',
-        modulo: 'IRRIGACAO',
-        acao: 'Decisão Automática',
-        detalhes: 'Acionamento cancelado: umidade acima do limiar de 60%.',
-      },
-      {
-        id: 103,
-        dataHora: '02/09/2026 11:32',
-        usuario: 'felipe.costa',
-        modulo: 'ESTOQUE',
-        acao: 'Importação NF-e',
-        detalhes: 'Adicionados 50kg de Nitrato de Cálcio via OCR.',
-      },
-    ]
+    if (err.response?.status === 403) {
+      semPermissao.value = true
+    } else {
+      erroCarregamento.value = mensagemDeErro(err, 'Erro ao obter logs de auditoria.')
+      toastStore.error(erroCarregamento.value)
+    }
+    logs.value = []
   } finally {
     carregando.value = false
+    paginaAtual.value = 1
   }
 }
 
-function mudarPagina(delta) {
-  paginaAtual.value += delta
-  carregarAuditoria()
+const modulosDisponiveis = computed(() => {
+  const setModulos = new Set()
+  for (const log of logs.value) {
+    if (log.tabela_afetada) {
+      setModulos.add(log.tabela_afetada)
+    }
+  }
+  return Array.from(setModulos).sort()
+})
+
+const logsFiltrados = computed(() => {
+  return logs.value.filter((log) => {
+    const busca = termoBusca.value.trim().toLowerCase()
+    const usuario = String(log.usuario || '').toLowerCase()
+    const detalhes = String(log.detalhes || '').toLowerCase()
+    const registro = String(log.registro_afetado || '').toLowerCase()
+
+    const atendeBusca =
+      !busca ||
+      usuario.includes(busca) ||
+      detalhes.includes(busca) ||
+      registro.includes(busca)
+
+    const atendeModulo = !filtroModulo.value || log.tabela_afetada === filtroModulo.value
+    const atendeAcao = !filtroAcao.value || log.acao === filtroAcao.value
+
+    return atendeBusca && atendeModulo && atendeAcao
+  })
+})
+
+const totalPaginas = computed(() => {
+  return Math.ceil(logsFiltrados.value.length / itensPorPagina) || 1
+})
+
+const itensPaginados = computed(() => {
+  const inicio = (paginaAtual.value - 1) * itensPorPagina
+  return logsFiltrados.value.slice(inicio, inicio + itensPorPagina)
+})
+
+function formatarDataHora(dataHoraStr) {
+  if (!dataHoraStr) return '-'
+  const d = new Date(dataHoraStr)
+  if (Number.isNaN(d.getTime())) return dataHoraStr
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 onMounted(() => {
-  carregarAuditoria()
+  carregarHistorico()
 })
 </script>
 
 <style scoped>
-
-.subtitle {
-  color: var(--cor-texto-secundario, #607d8b);
-  margin-top: 0.25rem;
-  font-size: 0.9rem;
+.historico-view {
+  padding: 1.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
-.select-touch {
-  min-height: 44px;
-  min-width: 180px;
-  padding: 0.5rem 1rem;
+.historico-container {
+  margin-top: 1.5rem;
+}
+
+.toolbar-filtros {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.filtros-grupo {
+  display: flex;
+  gap: 0.75rem;
+  flex: 1;
+  max-width: 800px;
+  flex-wrap: wrap;
+}
+
+.busca-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+}
+
+.icone-busca {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+  font-size: 20px;
+}
+
+.input-busca {
+  width: 100%;
+  padding: 0.55rem 0.75rem 0.55rem 2.4rem;
+  border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  background: #ffffff;
-  font-size: 0.95rem;
+  background: var(--color-surface, #ffffff);
+  font-size: 0.875rem;
 }
 
-.tabela-base {
+.select-filtro {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface, #ffffff);
+  font-size: 0.875rem;
+}
+
+.btn-atualizar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-atualizar:hover {
+  background-color: var(--color-background, #f8fafc);
+}
+
+.anim-spin {
+  animation: spin 1s linear infinite;
+}
+
+.tabela-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.tabela-responsive {
+  overflow-x: auto;
+}
+
+.tabela-auditoria {
   width: 100%;
   border-collapse: collapse;
-  background: #ffffff;
-  border-radius: var(--radius-md, 8px);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-}
-
-.tabela-base th,
-.tabela-base td {
-  padding: 1rem;
   text-align: left;
-  border-bottom: 1px solid var(--cor-borda, #eceff1);
-  font-size: 0.9rem;
+  font-size: 0.875rem;
 }
 
-.tabela-base th {
-  background-color: #f8fafc;
-  color: #37474f;
+.tabela-auditoria th {
+  padding: 0.85rem 1rem;
+  background-color: var(--color-background, #f8fafc);
+  color: var(--color-text-muted, #64748b);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.tabela-auditoria td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-text, #1e293b);
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+.font-destaque {
   font-weight: 600;
 }
 
-.badge-modulo {
-  background: #eceff1;
-  color: #37474f;
-  font-size: 0.75rem;
-  font-weight: bold;
+.col-detalhes {
+  max-width: 320px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.badge-acao {
+  display: inline-block;
   padding: 0.2rem 0.5rem;
-  border-radius: 4px;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.acao-adicionou {
+  background-color: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.acao-modificou {
+  background-color: rgba(2, 136, 209, 0.12);
+  color: #0288d1;
+}
+
+.acao-deletou {
+  background-color: rgba(211, 47, 47, 0.12);
+  color: #d32f2f;
 }
 
 .paginacao-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 1.5rem;
-  padding-top: 1rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  background-color: var(--color-background, #f8fafc);
 }
 
-.btn-pagina {
-  min-height: 44px;
-  min-width: 110px;
-  padding: 0.5rem 1rem;
-  background: #ffffff;
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  border-radius: var(--radius-md, 6px);
-  font-weight: 600;
+.info-paginacao {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.botoes-paginacao {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-pag {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 0.8rem;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.btn-pagina:disabled {
+.btn-pag:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-.state-placeholder {
+.alerta-permissao {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-warning-light, #fef3c7);
+  border-radius: var(--radius-lg, 12px);
   text-align: center;
-  padding: 3rem;
-  color: #78909c;
-  background: #fff;
-  border-radius: 8px;
+  margin: 1rem 0;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
+.icone-alerta {
+  font-size: 48px;
+  color: #d97706;
+  margin-bottom: 0.75rem;
 }
 
-/* ==========================================================================
-   TRANSFORMAÇÃO AUTOMÁTICA EM CARDS NO MOBILE (< 768px)
-   ========================================================================== */
-@media (max-width: 768px) {
-  .tabela-base thead {
-    display: none; /* Oculta cabeçalho tabular */
-  }
+.detalhe-permissao {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #94a3b8);
+  margin-top: 0.5rem;
+}
 
-  .tabela-base,
-  .tabela-base tbody,
-  .tabela-base tr,
-  .tabela-base td {
-    display: block;
-    width: 100%;
-  }
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  background-color: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px dashed var(--color-border, #e2e8f0);
+  color: var(--color-text-muted, #64748b);
+}
 
-  .registro-item {
-    background: #ffffff;
-    border: 1px solid var(--cor-borda, #e0e0e0);
-    border-radius: var(--radius-md, 8px);
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
-  }
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 0.75rem;
+}
 
-  .tabela-base td {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px dashed #eceff1;
-    padding: 0.65rem 0.5rem;
-    text-align: right;
-  }
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #16a34a);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 0.75rem;
+}
 
-  .tabela-base td:last-child {
-    border-bottom: none;
-  }
-
-  /* Exibe o rótulo da coluna automaticamente via data-label */
-  .tabela-base td::before {
-    content: attr(data-label);
-    font-weight: bold;
-    color: #546e7a;
-    font-size: 0.8rem;
-    text-align: left;
-    margin-right: 1rem;
-  }
-
-  .col-detalhes {
-    text-align: right;
-    word-break: break-word;
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

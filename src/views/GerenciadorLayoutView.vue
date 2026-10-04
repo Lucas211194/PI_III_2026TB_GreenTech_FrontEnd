@@ -1,442 +1,564 @@
 <template>
-  <div class="layout-container">
-    <header class="page-header">
-      <div class="header-titles">
-        <h2>Gêmeo Virtual da Estufa</h2>
-        <p class="subtitle">Mapeamento espacial dos canteiros, sensores e atuadores.</p>
+  <PageLayout>
+    <div class="layout-view">
+      <div class="header-secao">
+        <div>
+          <h2>Layout Físico das Estufas</h2>
+          <p class="subtitulo">
+            Distribuição espacial das mesas de cultivo, ocupação e parâmetros por setor
+          </p>
+        </div>
+        <button class="btn-toggle-painel" @click="exibirPainelGerenciamento = !exibirPainelGerenciamento">
+          <span class="material-symbols-outlined">
+            {{ exibirPainelGerenciamento ? 'expand_less' : 'tune' }}
+          </span>
+          {{ exibirPainelGerenciamento ? 'Ocultar Gerenciamento' : 'Gerenciar Estrutura Física' }}
+        </button>
       </div>
 
-      <!-- Barra de Ferramentas Ergonômica Mobile/Desktop -->
-      <div class="view-controls" role="toolbar" aria-label="Controles do Gêmeo Virtual">
-        <!-- Alternador de Perspectiva 2D / 3D -->
-        <div class="mode-switch">
-          <button 
-            type="button"
-            :class="['btn-toggle', { active: modoVisualizacao === '3d' }]"
-            @click="modoVisualizacao = '3d'"
-            aria-label="Alternar para visão isométrica 3D"
-          >
-            🏢 3D Isométrico
-          </button>
-          <button 
-            type="button"
-            :class="['btn-toggle', { active: modoVisualizacao === '2d' }]"
-            @click="modoVisualizacao = '2d'"
-            aria-label="Alternar para visão em grade 2D"
-          >
-            📐 Grade 2D
-          </button>
-        </div>
+      <!-- PAINEL DE GESTÃO FÍSICA (ESTUFAS E MESAS) -->
+      <transition name="fade">
+        <EstruturaFisicaPanel
+          v-if="exibirPainelGerenciamento"
+          @atualizado="carregarDados"
+        />
+      </transition>
 
-        <!-- Controles de Zoom -->
-        <div class="zoom-controls">
-          <button 
-            type="button" 
-            class="btn-zoom" 
-            @click="ajustarZoom(-0.1)" 
-            title="Reduzir zoom"
-            aria-label="Diminuir Zoom"
-          >
-            ➖
-          </button>
-          <span class="zoom-label" aria-live="polite">{{ Math.round(escalaZoom * 100) }}%</span>
-          <button 
-            type="button" 
-            class="btn-zoom" 
-            @click="ajustarZoom(0.1)" 
-            title="Aumentar zoom"
-            aria-label="Aumentar Zoom"
-          >
-            ➕
-          </button>
-          <button 
-            type="button" 
-            class="btn-zoom-reset" 
-            @click="resetarZoom"
-            aria-label="Restaurar Zoom Original"
-          >
-            Reset
-          </button>
-        </div>
+      <!-- CARREGANDO -->
+      <div v-if="carregando" class="loading-state">
+        <div class="spinner"></div>
+        <p>Montando layout físico das estufas...</p>
       </div>
-    </header>
 
-    <!-- Canvas de Exibição Espacial -->
-    <main class="viewport-canvas">
-      <div 
-        class="scene-transformer"
-        :class="[`mode-${modoVisualizacao}`]"
-        :style="transformStyles"
-      >
-        <div class="grid-estufa">
-          <div 
-            v-for="celula in gradeEstufa" 
-            :key="celula.id"
-            :class="['celula-grid', `tipo-${celula.tipo}`, { selecionado: celulaSelecionada?.id === celula.id }]"
-            @click="selecionarCelula(celula)"
-          >
-            <div class="celula-content">
-              <span class="celula-icon">{{ getIconeTipo(celula.tipo) }}</span>
-              <span class="celula-coord">{{ celula.linha }}x{{ celula.coluna }}</span>
+      <!-- ERRO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarDados"
+      />
+
+      <!-- GRADE DE ESTUFAS E MESAS -->
+      <div v-else-if="estufasAgrupadas.length > 0" class="estufas-grid">
+        <div
+          v-for="estufa in estufasAgrupadas"
+          :key="estufa.id"
+          class="card-estufa"
+        >
+          <div class="estufa-cabecalho">
+            <div class="estufa-info-principal">
+              <span class="material-symbols-outlined icone-setor">warehouse</span>
+              <div>
+                <h3>{{ estufa.nome_setor }}</h3>
+                <span class="tipo-cultivo">{{ estufa.tipo_cultivo || 'Geral' }}</span>
+              </div>
+            </div>
+            <div class="estufa-metricas">
+              <span class="badge-capacidade">
+                Capacidade do Setor: <strong>{{ estufa.capacidade_maxima }}</strong>
+              </span>
+              <span class="badge-mesas">
+                {{ estufa.mesas.length }} mesa(s)
+              </span>
+            </div>
+          </div>
+
+          <!-- MESAS DA ESTUFA -->
+          <div class="mesas-grid">
+            <div
+              v-for="mesa in estufa.mesas"
+              :key="mesa.id"
+              :class="['card-mesa', `status-${mesa.status_mesa || 'livre'}`]"
+            >
+              <div class="mesa-topo">
+                <span class="mesa-identificacao font-destaque">{{ mesa.identificacao }}</span>
+                <span :class="['badge-status-mesa', `status-${mesa.status_mesa || 'livre'}`]">
+                  {{ mesa.status_mesa || 'livre' }}
+                </span>
+              </div>
+
+              <!-- DETALHES DO LOTE ATIVO NA MESA -->
+              <div v-if="mesa.loteAtivo" class="mesa-lote-info">
+                <div class="cultura-nome">
+                  <span class="material-symbols-outlined">eco</span>
+                  <strong>{{ obterNomeCultura(mesa.loteAtivo.cultura_id) }}</strong>
+                </div>
+                <div class="lote-saldo">
+                  <span>Lote #{{ mesa.loteAtivo.id }}:</span>
+                  <span>{{ mesa.loteAtivo.quantidade }} {{ mesa.loteAtivo.unidade }}</span>
+                </div>
+
+                <!-- BARRA DE OCUPAÇÃO -->
+                <div class="barra-ocupacao-wrapper">
+                  <div class="barra-fundo">
+                    <div
+                      class="barra-preenchimento"
+                      :style="{ width: `${calcularPercentualOcupacao(mesa)}%` }"
+                    ></div>
+                  </div>
+                  <span class="texto-ocupacao">
+                    {{ calcularPercentualOcupacao(mesa).toFixed(0) }}% ocupado (Max: {{ mesa.capacidade_maxima }})
+                  </span>
+                </div>
+              </div>
+
+              <!-- MESA SEM LOTE ATIVO -->
+              <div v-else class="mesa-vazia">
+                <span class="material-symbols-outlined icone-vazio">crop_free</span>
+                <p>Mesa disponível</p>
+                <span class="capacidade-vazia">Capacidade: {{ mesa.capacidade_maxima }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MESAS AVULSAS (SEM ESTUFA VINCULADA / AUTO) -->
+        <div v-if="mesasSemEstufa.length > 0" class="card-estufa estufa-avulsa">
+          <div class="estufa-cabecalho">
+            <div class="estufa-info-principal">
+              <span class="material-symbols-outlined icone-setor">table_restaurant</span>
+              <div>
+                <h3>Mesas Avulsas / Reserva Técnica</h3>
+                <span class="tipo-cultivo">Mesas sem estufa definida (ex.: NF-AUTO)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="mesas-grid">
+            <div
+              v-for="mesa in mesasSemEstufa"
+              :key="mesa.id"
+              class="card-mesa status-avulsa"
+            >
+              <div class="mesa-topo">
+                <span class="mesa-identificacao font-destaque">{{ mesa.identificacao }}</span>
+                <span class="badge-status-mesa">{{ mesa.status_mesa || 'livre' }}</span>
+              </div>
+              <div v-if="mesa.loteAtivo" class="mesa-lote-info">
+                <div class="cultura-nome">
+                  <span class="material-symbols-outlined">eco</span>
+                  <strong>{{ obterNomeCultura(mesa.loteAtivo.cultura_id) }}</strong>
+                </div>
+                <div class="lote-saldo">
+                  <span>Lote #{{ mesa.loteAtivo.id }}:</span>
+                  <span>{{ mesa.loteAtivo.quantidade }} {{ mesa.loteAtivo.unidade }}</span>
+                </div>
+              </div>
+              <div v-else class="mesa-vazia">
+                <p>Sem lote vinculado</p>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </main>
 
-    <!-- Drawer de Detalhes do Canteiro/Módulo Selecionado -->
-    <aside v-if="celulaSelecionada" class="details-panel" aria-label="Detalhes da Posição Selecionada">
-      <div class="panel-header">
-        <h3>Posição [{{ celulaSelecionada.linha }}, {{ celulaSelecionada.coluna }}]</h3>
-        <button 
-          type="button" 
-          class="btn-close-panel" 
-          @click="celulaSelecionada = null"
-          aria-label="Fechar painel de detalhes"
-        >
-          &times;
+      <!-- VAZIO -->
+      <div v-else class="empty-state">
+        <span class="material-symbols-outlined empty-icon">grid_off</span>
+        <h3>Nenhuma estufa cadastrada no sistema</h3>
+        <p>Utilize o painel de gerenciamento físico para cadastrar suas estufas e mesas de cultivo.</p>
+        <button class="btn-primario" @click="exibirPainelGerenciamento = true">
+          Cadastrar Primeira Estufa
         </button>
       </div>
-      <div class="panel-body">
-        <p><strong>Tipo:</strong> {{ getDescricaoTipo(celulaSelecionada.tipo) }}</p>
-        <p><strong>Status Operacional:</strong> <span class="status-badge ativo">Ativo</span></p>
-        <p v-if="celulaSelecionada.cultura"><strong>Cultura Atual:</strong> {{ celulaSelecionada.cultura }}</p>
-        <p v-if="celulaSelecionada.umidade"><strong>Umidade do Solo:</strong> {{ celulaSelecionada.umidade }}%</p>
-      </div>
-    </aside>
-  </div>
+    </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { apiClient } from '@/services/api'
+import PageLayout from '@/components/PageLayout.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import EstruturaFisicaPanel from '@/components/EstruturaFisicaPanel.vue'
+import estruturaService from '@/services/estruturaService'
+import loteService from '@/services/loteService'
+import culturaService from '@/services/culturaService'
+import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
 
-/**
- * CONTRATO DE DADOS PARA O DESENVOLVEDOR BACK-END:
- * GET /api/estufas/layout/
- * Resposta esperada:
- * Array<{ id: number, linha: number, coluna: number, tipo: 'canteiro' | 'corredor' | 'sensor' | 'valvula', cultura?: string, umidade?: number }>
- */
-const gradeEstufa = ref([])
-const celulaSelecionada = ref(null)
-const modoVisualizacao = ref('3d') // '3d' ou '2d'
-const escalaZoom = ref(1)
+const carregando = ref(false)
+const erroCarregamento = ref('')
+const exibirPainelGerenciamento = ref(false)
 
-const transformStyles = computed(() => {
-  return {
-    transform: `scale(${escalaZoom.value})`,
-    transformOrigin: 'center center'
+const estufas = ref([])
+const mesas = ref([])
+const lotes = ref([])
+const culturas = ref([])
+
+async function carregarDados() {
+  carregando.value = true
+  erroCarregamento.value = ''
+
+  try {
+    const [resEst, resMes, resLot, resCul] = await Promise.all([
+      estruturaService.listarEstufas(),
+      estruturaService.listarMesas(),
+      loteService.listar(),
+      culturaService.listar(),
+    ])
+
+    estufas.value = resEst
+    mesas.value = resMes
+    lotes.value = resLot
+    culturas.value = resCul
+  } catch (err) {
+    erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar o layout das estufas.')
+    toastStore.error(erroCarregamento.value)
+  } finally {
+    carregando.value = false
   }
+}
+
+function obterNomeCultura(culturaId) {
+  const c = culturas.value.find((item) => item.id === culturaId)
+  return c ? c.nome_cultura : `Cultura #${culturaId}`
+}
+
+function obterLoteAtivoDaMesa(mesaId) {
+  return lotes.value.find(
+    (l) => l.mesa_id === mesaId && (l.status === 'AT' || l.status === 'DI' || l.status === 'ES'),
+  ) || null
+}
+
+const estufasAgrupadas = computed(() => {
+  return estufas.value.map((est) => {
+    const mesasDestaEstufa = mesas.value
+      .filter((m) => Number(m.estufa) === Number(est.id))
+      .map((m) => ({
+        ...m,
+        loteAtivo: obterLoteAtivoDaMesa(m.id),
+      }))
+
+    return {
+      ...est,
+      mesas: mesasDestaEstufa,
+    }
+  })
 })
 
-function ajustarZoom(delta) {
-  const novoZoom = Math.min(Math.max(escalaZoom.value + delta, 0.5), 1.6)
-  escalaZoom.value = parseFloat(novoZoom.toFixed(2))
-}
+const mesasSemEstufa = computed(() => {
+  return mesas.value
+    .filter((m) => !m.estufa)
+    .map((m) => ({
+      ...m,
+      loteAtivo: obterLoteAtivoDaMesa(m.id),
+    }))
+})
 
-function resetarZoom() {
-  escalaZoom.value = window.innerWidth <= 480 ? 0.75 : 1
-}
-
-function selecionarCelula(celula) {
-  celulaSelecionada.value = celula
-}
-
-function getIconeTipo(tipo) {
-  const mapa = {
-    canteiro: '🌱',
-    sensor: '📟',
-    valvula: '💧',
-    corredor: '⬜'
-  }
-  return mapa[tipo] || '📦'
-}
-
-function getDescricaoTipo(tipo) {
-  const mapa = {
-    canteiro: 'Canteiro Produtivo',
-    sensor: 'Estação de Telemetria',
-    valvula: 'Válvula de Irrigação Automatizada',
-    corredor: 'Área Livre de Circulação'
-  }
-  return mapa[tipo] || tipo
-}
-
-async function carregarLayout() {
-  try {
-    const dados = await apiClient('/estufas/layout/')
-    gradeEstufa.value = dados
-  } catch (error) {
-    // Fallback de contingência (grid padrão 4x4) caso o endpoint do back ainda não tenha sido populado
-    const gridMock = []
-    for (let r = 1; r <= 4; r++) {
-      for (let c = 1; c <= 4; c++) {
-        let tipo = 'canteiro'
-        if (r === 2 && c === 2) tipo = 'sensor'
-        else if (r === 3 && c === 3) tipo = 'valvula'
-        else if (c === 1) tipo = 'corredor'
-
-        gridMock.push({
-          id: (r - 1) * 4 + c,
-          linha: r,
-          coluna: c,
-          tipo,
-          cultura: tipo === 'canteiro' ? 'Alface Americana' : null,
-          umidade: tipo === 'sensor' ? 64 : null
-        })
-      }
-    }
-    gradeEstufa.value = gridMock
-  }
+function calcularPercentualOcupacao(mesa) {
+  if (!mesa.loteAtivo) return 0
+  const qtd = parseNumero(mesa.loteAtivo.quantidade)
+  const cap = parseNumero(mesa.capacidade_maxima, 1)
+  if (cap <= 0) return 0
+  return Math.min((qtd / cap) * 100, 100)
 }
 
 onMounted(() => {
-  // Em celulares estreitos, inicia com zoom reduzido para evitar transbordo inicial
-  if (window.innerWidth <= 480) {
-    escalaZoom.value = 0.75
-  }
-  carregarLayout()
+  carregarDados()
 })
 </script>
 
 <style scoped>
-.layout-container {
+.layout-view {
   padding: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  height: calc(100vh - 80px);
-  position: relative;
-  overflow: hidden;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
-.page-header {
+.header-secao {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 1rem;
   margin-bottom: 1.5rem;
-  z-index: 10;
-}
-
-.header-titles h2 {
-  margin: 0;
-  color: var(--cor-texto-principal, #263238);
-}
-
-.subtitle {
-  margin: 0.25rem 0 0 0;
-  color: var(--cor-texto-secundario, #607d8b);
-  font-size: 0.9rem;
-}
-
-.view-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
   flex-wrap: wrap;
+  gap: 1rem;
 }
 
-.mode-switch {
-  display: flex;
-  background: #eceff1;
-  border-radius: var(--radius-md, 8px);
-  padding: 0.25rem;
-}
-
-.btn-toggle {
-  border: none;
-  background: transparent;
-  padding: 0.5rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--cor-texto-principal, #455a64);
-  border-radius: var(--radius-sm, 6px);
-  cursor: pointer;
-  min-height: 44px;
-}
-
-.btn-toggle.active {
-  background: var(--cor-verde-primaria, #2e7d32);
-  color: #ffffff;
-}
-
-.zoom-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #ffffff;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--cor-borda, #cfd8dc);
-}
-
-.btn-zoom, .btn-zoom-reset {
-  min-width: 44px;
-  min-height: 44px;
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  background: #ffffff;
-  border-radius: 6px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.9rem;
-}
-
-.zoom-label {
-  min-width: 50px;
-  text-align: center;
-  font-size: 0.85rem;
-  font-weight: bold;
-}
-
-/* Área de renderização da estufa */
-.viewport-canvas {
-  flex: 1;
-  width: 100%;
-  background: #f0f4f8;
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  overflow: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  touch-action: pan-x pan-y;
-}
-
-.scene-transformer {
-  transition: transform 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-  display: inline-block;
-}
-
-/* Modo 3D Isométrico */
-.mode-3d .grid-estufa {
-  transform: rotateX(60deg) rotateZ(-45deg);
-  box-shadow: -15px 15px 25px rgba(0, 0, 0, 0.15);
-}
-
-/* Modo 2D Técnico */
-.mode-2d .grid-estufa {
-  transform: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-}
-
-.grid-estufa {
-  display: grid;
-  grid-template-columns: repeat(4, 100px);
-  grid-template-rows: repeat(4, 100px);
-  gap: 12px;
-  background: #cfd8dc;
-  padding: 16px;
-  border-radius: 8px;
-  transition: transform 0.4s ease;
-}
-
-.celula-grid {
-  background: #ffffff;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 2px solid transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  transition: all 0.2s;
-}
-
-.celula-grid:hover {
-  transform: translateY(-2px);
-  border-color: var(--cor-verde-primaria, #2e7d32);
-}
-
-.celula-grid.selecionado {
-  border-color: var(--cor-verde-primaria, #2e7d32);
-  box-shadow: 0 0 10px rgba(46, 125, 50, 0.5);
-}
-
-.celula-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.celula-icon {
+.header-secao h2 {
+  margin: 0;
   font-size: 1.5rem;
 }
 
-.celula-coord {
-  font-size: 0.75rem;
-  color: #78909c;
+.subtitulo {
+  color: var(--color-text-muted, #64748b);
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
 }
 
-/* Painel lateral de detalhes */
-.details-panel {
-  position: absolute;
-  right: 1.5rem;
-  top: 6rem;
-  width: 300px;
-  background: #ffffff;
+.btn-toggle-painel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.55rem 1rem;
   border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  z-index: 50;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.panel-header {
-  padding: 1rem;
+.btn-toggle-painel:hover {
+  background-color: var(--color-background, #f8fafc);
+}
+
+.estufas-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.card-estufa {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.card-estufa.estufa-avulsa {
+  border-style: dashed;
+  background-color: var(--color-background, #f8fafc);
+}
+
+.estufa-cabecalho {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid #eceff1;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  padding-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
-.panel-header h3 {
+.estufa-info-principal {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.icone-setor {
+  font-size: 32px;
+  color: var(--color-primary, #16a34a);
+}
+
+.estufa-cabecalho h3 {
   margin: 0;
+  font-size: 1.25rem;
+}
+
+.tipo-cultivo {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.estufa-metricas {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.badge-capacidade,
+.badge-mesas {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.65rem;
+  background-color: var(--color-background, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-text-muted, #64748b);
+}
+
+.mesas-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.card-mesa {
+  background: var(--color-background, #f8fafc);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 140px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.card-mesa:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.card-mesa.status-ocupada {
+  border-left: 4px solid var(--color-primary, #16a34a);
+}
+
+.card-mesa.status-livre {
+  border-left: 4px solid var(--color-text-muted, #94a3b8);
+}
+
+.mesa-topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.mesa-identificacao {
   font-size: 1rem;
 }
 
-.btn-close-panel {
-  background: transparent;
-  border: none;
-  font-size: 1.4rem;
-  min-width: 44px;
-  min-height: 44px;
-  cursor: pointer;
+.badge-status-mesa {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  font-weight: 600;
+  background-color: #e2e8f0;
+  color: #64748b;
 }
 
-.panel-body {
-  padding: 1rem;
+.badge-status-mesa.status-ocupada {
+  background-color: rgba(22, 163, 74, 0.15);
+  color: #16a34a;
+}
+
+.mesa-lote-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.cultura-nome {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-text, #1e293b);
   font-size: 0.9rem;
 }
 
-.status-badge.ativo {
-  background: #e8f5e9;
-  color: #2e7d32;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  font-weight: bold;
+.cultura-nome .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--color-primary, #16a34a);
 }
 
-@media (max-width: 768px) {
-  .layout-container {
-    padding: 0.75rem;
-    height: auto;
-    min-height: calc(100vh - 60px);
-  }
+.lote-saldo {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
 
-  .details-panel {
-    position: fixed;
-    right: 0;
-    bottom: 0;
-    top: auto;
-    width: 100%;
-    border-radius: 12px 12px 0 0;
-  }
+.barra-ocupacao-wrapper {
+  margin-top: 0.25rem;
+}
+
+.barra-fundo {
+  width: 100%;
+  height: 6px;
+  background-color: #e2e8f0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.barra-preenchimento {
+  height: 100%;
+  background-color: var(--color-primary, #16a34a);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.texto-ocupacao {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #94a3b8);
+  margin-top: 0.25rem;
+  text-align: right;
+}
+
+.mesa-vazia {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 0;
+  color: var(--color-text-muted, #94a3b8);
+  text-align: center;
+}
+
+.icone-vazio {
+  font-size: 28px;
+  margin-bottom: 0.25rem;
+}
+
+.mesa-vazia p {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.capacidade-vazia {
+  font-size: 0.7rem;
+}
+
+.font-destaque {
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+}
+
+.btn-primario {
+  background-color: var(--color-primary, #16a34a);
+  color: #fff;
+  border: none;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md, 8px);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px dashed var(--color-border, #e2e8f0);
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: var(--color-text-muted, #64748b);
+  margin-bottom: 1rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #16a34a);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

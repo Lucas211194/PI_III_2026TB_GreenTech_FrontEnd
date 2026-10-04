@@ -1,473 +1,696 @@
 <template>
-  <PageLayout
-    title="Lotes de Plantio"
-    subtitle="Entrada, alocação, histórico de movimentações e maturação."
-  >
-    <template #header-actions>
-      <WeatherWidget />
-    </template>
+  <div class="lote-view">
+    <DashHeader title="Gestão de Lotes de Plantio" subtitle="Controle de semeadura, cultivo e monitoramento por mesa" />
 
-    <section class="registration-container-estoque">
-      <div class="action-bar-estoque">
-        <div class="search-box-estoque">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input
-            type="text"
-            class="search-input"
-            v-model="busca"
-            placeholder="Buscar por Lote ou Fornecedor..."
-          />
+    <div class="lote-container">
+      <!-- AÇÕES DO TOPO E FILTROS -->
+      <div class="top-actions">
+        <div class="filtros-busca">
+          <div class="busca-input-wrapper">
+            <span class="material-symbols-outlined">search</span>
+            <input
+              v-model="termoBusca"
+              type="text"
+              placeholder="Buscar por lote, cultura, mesa ou fornecedor..."
+              class="input-busca"
+            />
+          </div>
+          <select v-model="filtroStatus" class="select-filtro">
+            <option value="">Todos os status</option>
+            <option value="AT">Ativo</option>
+            <option value="ES">Em Estoque</option>
+            <option value="BX">Estoque Baixo</option>
+            <option value="DI">Disponível</option>
+            <option value="CO">Colhido</option>
+            <option value="PE">Perdido</option>
+          </select>
         </div>
-        <button class="btn-generate" @click="modoCadastro = true">
-          <span class="material-symbols-outlined">add</span> Alocar Novo Lote
+
+        <button class="btn-novo-lote" @click="abrirModalNovoLote">
+          <span class="material-symbols-outlined">add</span>
+          Novo Lote
         </button>
       </div>
 
-      <div class="inventory-split-view">
-        <div class="seed-list-container">
-          <div v-if="lotesFiltrados.length === 0" class="empty-state">Nenhum lote encontrado.</div>
-          <div
-            v-else
-            v-for="l in lotesFiltrados"
-            :key="l.id"
-            class="mini-card"
-            :class="{ active: loteSelecionado?.id === l.id }"
-            @click="selecionar(l)"
-          >
-            <div class="mini-card-header">
-              <h4>LOTE #{{ l.id }}</h4>
-              <span
-                class="badge"
-                :class="{
-                  'badge-good': l.status === 'AT' || l.status === 'DI',
-                  'badge-warning': l.status === 'ES' || l.status === 'BX',
-                  'badge-out': l.status === 'CO' || l.status === 'PE',
-                }"
-              >
-                {{ traduzirStatus(l.status) }}
-              </span>
-            </div>
-            <div class="mini-card-cultura">Fornecedor: {{ l.fornecedor }}</div>
-            <div class="mini-card-qty">
-              <span class="material-symbols-outlined" style="font-size: 1rem">layers</span> Mesa ID:
-              {{ l.mesa_id }}
-            </div>
-          </div>
+      <!-- CARREGAMENTO -->
+      <div v-if="carregando" class="loading-state">
+        <div class="spinner"></div>
+        <p>Carregando lotes...</p>
+      </div>
+
+      <!-- ERRO DE CARREGAMENTO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarDados"
+      />
+
+      <!-- LISTAGEM EM TABELA -->
+      <div v-else-if="lotesFiltrados.length > 0" class="tabela-card">
+        <table class="tabela-lotes">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Cultura</th>
+              <th>Mesa</th>
+              <th>Plantio</th>
+              <th>Quantidade</th>
+              <th>Validade</th>
+              <th>Status</th>
+              <th>Fornecedor</th>
+              <th width="80">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="lote in lotesFiltrados" :key="lote.id">
+              <td class="font-mono">#{{ lote.id }}</td>
+              <td class="font-destaque">{{ obterNomeCultura(lote.cultura_id) }}</td>
+              <td>{{ obterIdentificacaoMesa(lote.mesa_id) }}</td>
+              <td>{{ formatarData(lote.data_plantio) }}</td>
+              <td>{{ lote.quantidade }} {{ lote.unidade }}</td>
+              <td>{{ lote.validade ? formatarData(lote.validade) : '-' }}</td>
+              <td>
+                <span :class="['badge-status', `status-${lote.status}`]">
+                  {{ rotuloStatus(lote.status) }}
+                </span>
+              </td>
+              <td>{{ lote.fornecedor || '-' }}</td>
+              <td>
+                <button
+                  v-if="podeExcluir"
+                  class="btn-icon btn-danger"
+                  title="Excluir Lote"
+                  @click="excluirLote(lote.id)"
+                >
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- ESTADO VAZIO -->
+      <div v-else class="empty-state">
+        <span class="material-symbols-outlined empty-icon">psychiatry</span>
+        <h3>Nenhum lote encontrado</h3>
+        <p>Cadastre um novo lote de plantio para vincular a uma mesa e cultura.</p>
+        <button class="btn-novo-lote" @click="abrirModalNovoLote">Criar Primeiro Lote</button>
+      </div>
+    </div>
+
+    <!-- MODAL DE CADASTRO DE LOTE -->
+    <div v-if="exibirModal" class="modal-overlay" @click.self="fecharModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Novo Lote de Plantio</h3>
+          <button class="btn-close" @click="fecharModal">
+            <span class="material-symbols-outlined">close</span>
+          </button>
         </div>
 
-        <div class="seed-detail-panel" style="overflow-y: auto; max-height: 70vh">
-          <form v-if="modoCadastro" @submit.prevent="salvarLote" class="form-grid-layout">
-            <div class="detail-header" style="grid-column: 1 / -1">
-              <h2>
-                <span class="material-symbols-outlined">local_florist</span> Recepção e Alocação
-              </h2>
-            </div>
+        <form @submit.prevent="salvarLote">
+          <div class="form-row">
             <div class="form-group">
-              <label>Cultura (Espécie)</label>
-              <select v-model="form.cultura_id" required>
-                <option value="" disabled>Selecione a cultura...</option>
-                <option v-for="c in culturasDisponiveis" :key="c.id" :value="c.id">
+              <label for="cultura-select">Cultura *</label>
+              <select id="cultura-select" v-model="novoLote.cultura_id" required>
+                <option value="" disabled>Selecione uma cultura</option>
+                <option v-for="c in culturas" :key="c.id" :value="c.id">
                   {{ c.nome_cultura }}
                 </option>
               </select>
             </div>
+
             <div class="form-group">
-              <label>Mesa de Destino</label>
-              <select v-model="form.mesa_id" required>
-                <option value="" disabled>Selecione a mesa livre...</option>
-                <option v-for="m in mesasDisponiveis" :key="m.id" :value="m.id">
-                  {{ m.identificacao }}
+              <label for="mesa-select">Mesa *</label>
+              <select id="mesa-select" v-model="novoLote.mesa_id" required>
+                <option value="" disabled>Selecione uma mesa</option>
+                <option v-for="m in mesas" :key="m.id" :value="m.id">
+                  {{ m.identificacao }} ({{ m.estufa_nome || 'Sem estufa' }})
                 </option>
               </select>
             </div>
+          </div>
+
+          <div class="form-row">
             <div class="form-group">
-              <label>Quantidade</label
-              ><input type="number" step="0.01" v-model="form.quantidade" required />
+              <label for="data-plantio">Data de Plantio *</label>
+              <input id="data-plantio" v-model="novoLote.data_plantio" type="date" required />
             </div>
+
             <div class="form-group">
-              <label>Unidade</label>
-              <select v-model="form.unidade" required>
-                <option value="Unidades">Unidades</option>
-                <option value="Bandejas">Bandejas</option>
+              <label for="validade-lote">Data de Validade</label>
+              <input id="validade-lote" v-model="novoLote.validade" type="date" />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="quantidade-lote">Quantidade Inicial *</label>
+              <input
+                id="quantidade-lote"
+                v-model.number="novoLote.quantidade"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="unidade-lote">Unidade *</label>
+              <select id="unidade-lote" v-model="novoLote.unidade" required>
+                <option value="UN">UN (Unidade)</option>
+                <option value="KG">KG (Quilograma)</option>
+                <option value="G">G (Grama)</option>
+                <option value="CX">CX (Caixa)</option>
+                <option value="BD">BD (Bandeja)</option>
               </select>
             </div>
-            <div class="form-group full-width">
-              <label>Fornecedor (Viveiro)</label
-              ><input type="text" v-model="form.fornecedor" required />
-            </div>
+          </div>
+
+          <div class="form-row">
             <div class="form-group">
-              <label>Data de Plantio</label
-              ><input type="date" v-model="form.data_plantio" required />
+              <label for="status-lote">Status Inicial *</label>
+              <select id="status-lote" v-model="novoLote.status" required>
+                <option value="AT">Ativo</option>
+                <option value="DI">Disponível</option>
+                <option value="ES">Em Estoque</option>
+                <option value="BX">Estoque Baixo</option>
+              </select>
             </div>
+
             <div class="form-group">
-              <label>Validade Estimada</label><input type="date" v-model="form.validade" required />
-            </div>
-            <div class="form-actions-right" style="grid-column: 1 / -1">
-              <button type="button" class="btn-outline" @click="modoCadastro = false">
-                Cancelar
-              </button>
-              <button type="submit" class="btn-save">Confirmar Alocação</button>
-            </div>
-          </form>
-
-          <div v-else-if="loteSelecionado">
-            <div class="detail-header">
-              <h2>LOTE #{{ loteSelecionado.id }}</h2>
-            </div>
-
-            <div
-              v-if="progressoSelecionado"
-              style="
-                margin-bottom: 25px;
-                background: rgba(255, 255, 255, 0.5);
-                padding: 18px;
-                border-radius: 12px;
-                border: 1px solid var(--glass-border);
-              "
-            >
-              <div
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  font-weight: 700;
-                  margin-bottom: 8px;
-                  color: var(--primary-dark);
-                  font-size: 0.95rem;
-                "
-              >
-                <span>Estágio de Maturação ({{ progressoSelecionado.nomeCultura }})</span>
-                <span
-                  :style="{
-                    color:
-                      progressoSelecionado.porcentagem >= 90 ? '#e65100' : 'var(--primary-green)',
-                  }"
-                  >{{ progressoSelecionado.porcentagem }}%</span
-                >
-              </div>
-              <div
-                style="
-                  width: 100%;
-                  height: 12px;
-                  background: rgba(0, 0, 0, 0.06);
-                  border-radius: 10px;
-                  overflow: hidden;
-                  margin-bottom: 12px;
-                "
-              >
-                <div
-                  style="height: 100%; transition: width 0.5s ease-in-out"
-                  :style="{
-                    width: progressoSelecionado.porcentagem + '%',
-                    background:
-                      progressoSelecionado.porcentagem >= 90
-                        ? 'linear-gradient(90deg, #f57c00, #ffb74d)'
-                        : 'linear-gradient(90deg, #3a5a40, #588157)',
-                  }"
-                ></div>
-              </div>
-              <div
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 0.85rem;
-                  color: #555;
-                  font-weight: 500;
-                "
-              >
-                <span
-                  >Dias em campo: <strong>{{ progressoSelecionado.diasPassados }}</strong></span
-                >
-                <span v-if="progressoSelecionado.diasRestantes > 0"
-                  >Restam: <strong>{{ progressoSelecionado.diasRestantes }} dias</strong></span
-                >
-                <span v-else style="color: #e65100; font-weight: 700">Pronto para Colheita!</span>
-              </div>
-            </div>
-
-            <div class="detail-grid" style="margin-bottom: 20px">
-              <div class="detail-item">
-                <label>Data de Plantio</label
-                ><span>{{
-                  new Date(loteSelecionado.data_plantio).toLocaleDateString('pt-BR')
-                }}</span>
-              </div>
-              <div class="detail-item">
-                <label>Mesa Atual</label><span>Mesa {{ loteSelecionado.mesa_id }}</span>
-              </div>
-              <div class="detail-item full-width qty-destaque">
-                <label class="qty-label">Saldo Atual</label>
-                <span class="qty-value" style="color: var(--primary-dark)"
-                  >{{ parseFloat(loteSelecionado.quantidade) }} {{ loteSelecionado.unidade }}</span
-                >
-              </div>
-            </div>
-
-            <h3
-              style="
-                color: var(--primary-green);
-                margin-bottom: 15px;
-                font-size: 1.1rem;
-                border-bottom: 1px solid #eee;
-                padding-bottom: 10px;
-              "
-            >
-              <span class="material-symbols-outlined" style="vertical-align: middle">history</span>
-              Histórico de Movimentações
-            </h3>
-            <div v-if="movimentacoesDoLote.length === 0" style="color: #888; font-style: italic">
-              Nenhuma movimentação registrada.
-            </div>
-            <div v-else style="display: flex; flex-direction: column; gap: 10px">
-              <div
-                v-for="m in movimentacoesDoLote"
-                :key="m.id"
-                style="
-                  background: #f9f9f9;
-                  padding: 12px;
-                  border-radius: 8px;
-                  border: 1px solid #eee;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                "
-              >
-                <div>
-                  <span
-                    class="badge"
-                    :class="
-                      m.tipo_movimentacao.toLowerCase() === 'entrada' ? 'badge-good' : 'badge-out'
-                    "
-                    style="margin-right: 10px"
-                    >{{ m.tipo_movimentacao.toUpperCase() }}</span
-                  >
-                  <span style="font-weight: 600; color: #555">{{ m.motivo }}</span>
-                  <div style="font-size: 0.8rem; color: #888; margin-top: 4px">
-                    {{ new Date(m.data_movimentacao).toLocaleString('pt-BR') }}
-                  </div>
-                </div>
-                <div
-                  style="font-weight: bold; font-size: 1.1rem"
-                  :style="{
-                    color: m.tipo_movimentacao.toLowerCase() === 'entrada' ? '#2e7d32' : '#c62828',
-                  }"
-                >
-                  {{ m.tipo_movimentacao.toLowerCase() === 'entrada' ? '+' : '-'
-                  }}{{ parseFloat(m.quantidade) }}
-                </div>
-              </div>
-            </div>
-
-            <div
-              v-if="isGerente || isAdmin"
-              style="
-                margin-top: 35px;
-                padding-top: 20px;
-                border-top: 1px dashed #ffcdd2;
-                display: flex;
-                justify-content: flex-end;
-              "
-            >
-              <button
-                @click="excluirLote(loteSelecionado.id)"
-                style="
-                  background: #c62828;
-                  color: white;
-                  padding: 10px 18px;
-                  border-radius: 8px;
-                  border: none;
-                  font-weight: 600;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  gap: 6px;
-                  transition: background 0.2s;
-                "
-                onmouseover="this.style.background = '#b71c1c'"
-                onmouseout="this.style.background = '#c62828'"
-              >
-                <span class="material-symbols-outlined" style="font-size: 1.2rem"
-                  >delete_forever</span
-                >
-                Excluir Lote Definitivamente
-              </button>
+              <label for="fornecedor-lote">Fornecedor</label>
+              <input
+                id="fornecedor-lote"
+                v-model="novoLote.fornecedor"
+                type="text"
+                placeholder="Ex.: Sementes do Vale"
+              />
             </div>
           </div>
 
-          <div
-            v-else
-            class="detalhe-placeholder"
-            style="text-align: center; color: #aaa; margin-top: 100px"
-          >
-            <span class="material-symbols-outlined" style="font-size: 3rem">touch_app</span>
-            <p>Selecione um lote para ver os detalhes, histórico e maturação.</p>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModal">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-salvar" :disabled="salvando">
+              <span v-if="salvando" class="spinner-sm"></span>
+              {{ salvando ? 'Cadastrando...' : 'Cadastrar Lote' }}
+            </button>
           </div>
-        </div>
+        </form>
       </div>
-    </section>
-  </PageLayout>
+    </div>
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import WeatherWidget from '@/components/WeatherWidget.vue'
-import { verificarPermissao } from '@/assets/JS/verificarPermissao.js'
-import PageLayout from '@/components/PageLayout.vue'
+import DashHeader from '@/components/DashHeader.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import apiClient from '@/services/api'
+import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
+import { useAuthStore } from '@/stores/auth'
+import { useToastStore } from '@/stores/toast'
+import verificarPermissao from '@/assets/JS/verificarPermissao'
 
-const isGerente = ref(false)
-const isAdmin = ref(false)
+const authStore = useAuthStore()
+const toastStore = useToastStore()
+
 const lotes = ref([])
-const culturasDisponiveis = ref([])
-const mesasDisponiveis = ref([])
-const movimentacoesGerais = ref([])
-const loteSelecionado = ref(null)
-const modoCadastro = ref(false)
-const busca = ref('')
-const form = ref({
+const culturas = ref([])
+const mesas = ref([])
+
+const carregando = ref(false)
+const salvando = ref(false)
+const erroCarregamento = ref('')
+const exibirModal = ref(false)
+
+const termoBusca = ref('')
+const filtroStatus = ref('')
+
+const permissoesUsuario = ref({ isAdmin: false, isGerente: false })
+
+const podeExcluir = computed(() => {
+  return permissoesUsuario.value.isAdmin || permissoesUsuario.value.isGerente || authStore.isAdmin || authStore.isGerente
+})
+
+const formularioPadrao = () => ({
   cultura_id: '',
   mesa_id: '',
   data_plantio: new Date().toISOString().split('T')[0],
+  validade: null,
+  quantidade: 1,
+  unidade: 'UN',
   status: 'AT',
-  quantidade: 0,
-  unidade: 'Unidades',
-  fornecedor: '',
-  validade: '',
+  fornecedor: ''
 })
 
-// Dicionário de Status
-const mapaStatus = {
-  ES: 'Em Estoque',
-  BX: 'Estoque Baixo',
-  DI: 'Disponível',
-  AT: 'Ativo',
-  CO: 'Colhido',
-  PE: 'Perdido',
-}
+const novoLote = ref(formularioPadrao())
 
-const traduzirStatus = (sigla) => {
-  return mapaStatus[sigla] || sigla
-}
-
-const lotesFiltrados = computed(() =>
-  lotes.value.filter(
-    (l) =>
-      l.id.toString().includes(busca.value) ||
-      l.fornecedor.toLowerCase().includes(busca.value.toLowerCase()),
-  ),
-)
-const movimentacoesDoLote = computed(() =>
-  !loteSelecionado.value
-    ? []
-    : movimentacoesGerais.value.filter((m) => m.lote_id === loteSelecionado.value.id).reverse(),
-) // reverse para ver o mais recente no topo
-
-const progressoSelecionado = computed(() => {
-  if (!loteSelecionado.value) return null
-  const cultura = culturasDisponiveis.value.find((c) => c.id === loteSelecionado.value.cultura_id)
-  if (!cultura || !loteSelecionado.value.data_plantio)
-    return { porcentagem: 0, diasPassados: 0, diasRestantes: 0, nomeCultura: 'Desconhecida' }
-
-  const dataPlantio = new Date(loteSelecionado.value.data_plantio)
-  const diasPassados = Math.max(0, Math.floor((new Date() - dataPlantio) / (1000 * 60 * 60 * 24)))
-  const porcentagem = Math.min(
-    100,
-    Math.max(0, Math.round((diasPassados / cultura.tempo_medio_colheita) * 100)),
-  )
-  const diasRestantes = Math.max(0, cultura.tempo_medio_colheita - diasPassados)
-  return { porcentagem, diasPassados, diasRestantes, nomeCultura: cultura.nome_cultura }
-})
-
-const carregarDados = async () => {
-  const h = { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+async function carregarPermissoes() {
   try {
-    const [resLotes, resCulturas, resMesas, resEstoque] = await Promise.all([
-      fetch('/api/lotes/', { headers: h }),
-      fetch('/api/cultura/', { headers: h }),
-      fetch('/api/mesa/', { headers: h }),
-      fetch('/api/estoque/', { headers: h }),
+    const perm = await verificarPermissao()
+    permissoesUsuario.value = perm
+  } catch {
+    permissoesUsuario.value = { isAdmin: false, isGerente: false }
+  }
+}
+
+async function carregarDados() {
+  carregando.value = true
+  erroCarregamento.value = ''
+  try {
+    const [resLotes, resCulturas, resMesas] = await Promise.all([
+      apiClient.get('/lotes/'),
+      apiClient.get('/cultura/'),
+      apiClient.get('/mesa/')
     ])
-    if (resLotes.ok) lotes.value = await resLotes.json()
-    if (resCulturas.ok) culturasDisponiveis.value = await resCulturas.json()
-    if (resMesas.ok) mesasDisponiveis.value = await resMesas.json()
-    if (resEstoque.ok) movimentacoesGerais.value = await resEstoque.json()
+
+    lotes.value = extrairLista(resLotes.data)
+    culturas.value = extrairLista(resCulturas.data)
+    mesas.value = extrairLista(resMesas.data)
   } catch (err) {
-    console.error(err)
+    erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar dados dos lotes.')
+    toastStore.error(erroCarregamento.value)
+  } finally {
+    carregando.value = false
   }
 }
 
-const verificarAcessos = async () => {
-  const permissoes = await verificarPermissao()
-  isGerente.value = permissoes.isGerente
-  isAdmin.value = permissoes.isAdmin
+// B02: Busca segura evitando quebra caso lote.fornecedor seja null
+const lotesFiltrados = computed(() => {
+  return lotes.value.filter((lote) => {
+    const culturaNome = obterNomeCultura(lote.cultura_id).toLowerCase()
+    const mesaId = obterIdentificacaoMesa(lote.mesa_id).toLowerCase()
+    const fornecedorNome = (lote.fornecedor || '').toLowerCase()
+    const loteId = String(lote.id)
+
+    const busca = termoBusca.value.trim().toLowerCase()
+    const atendeBusca =
+      !busca ||
+      loteId.includes(busca) ||
+      culturaNome.includes(busca) ||
+      mesaId.includes(busca) ||
+      fornecedorNome.includes(busca)
+
+    const atendeStatus = !filtroStatus.value || lote.status === filtroStatus.value
+
+    return atendeBusca && atendeStatus
+  })
+})
+
+function obterNomeCultura(culturaId) {
+  const cultura = culturas.value.find((c) => c.id === culturaId)
+  return cultura ? cultura.nome_cultura : `Cultura #${culturaId}`
 }
 
-const selecionar = (l) => {
-  loteSelecionado.value = l
-  modoCadastro.value = false
+function obterIdentificacaoMesa(mesaId) {
+  const mesa = mesas.value.find((m) => m.id === mesaId)
+  return mesa ? mesa.identificacao : `Mesa #${mesaId}`
 }
 
-const salvarLote = async () => {
+function rotuloStatus(status) {
+  const mapa = {
+    AT: 'Ativo',
+    ES: 'Em Estoque',
+    BX: 'Estoque Baixo',
+    DI: 'Disponível',
+    CO: 'Colhido',
+    PE: 'Perdido'
+  }
+  return mapa[status] || status
+}
+
+function formatarData(dataStr) {
+  if (!dataStr) return '-'
+  const [ano, mes, dia] = dataStr.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+function abrirModalNovoLote() {
+  novoLote.value = formularioPadrao()
+  exibirModal.value = true
+}
+
+function fecharModal() {
+  if (salvando.value) return
+  exibirModal.value = false
+}
+
+async function salvarLote() {
+  salvando.value = true
   try {
-    const res = await fetch('/api/lotes/', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('access_token')}`,
-      },
-      body: JSON.stringify(form.value),
-    })
-    if (res.ok) {
-      alert('Lote alocado com sucesso!')
-      modoCadastro.value = false
-      form.value = {
-        cultura_id: '',
-        mesa_id: '',
-        data_plantio: new Date().toISOString().split('T')[0],
-        status: 'AT',
-        quantidade: 0,
-        unidade: 'Unidades',
-        fornecedor: '',
-        validade: '',
-      }
-      carregarDados()
-    } else {
-      alert('Erro ao alocar o lote.')
+    const payload = {
+      cultura_id: novoLote.value.cultura_id,
+      mesa_id: novoLote.value.mesa_id,
+      data_plantio: novoLote.value.data_plantio,
+      validade: novoLote.value.validade || null,
+      quantidade: novoLote.value.quantidade,
+      unidade: novoLote.value.unidade,
+      status: novoLote.value.status,
+      fornecedor: novoLote.value.fornecedor?.trim() || null
     }
+
+    await apiClient.post('/lotes/', payload)
+    toastStore.success('Lote criado com sucesso e movimentação registrada!')
+    exibirModal.value = false
+    await carregarDados()
   } catch (err) {
-    console.error(err)
+    toastStore.error(mensagemDeErro(err, 'Falha ao cadastrar o lote.'))
+  } finally {
+    salvando.value = false
   }
 }
 
-const excluirLote = async (id) => {
-  if (
-    !confirm(
-      `TEM CERTEZA? Deseja excluir permanentemente o Lote #${id}?\n\nEsta ação apagará todo o histórico de transações associado no estoque e não poderá ser desfeita.`,
-    )
-  ) {
+async function excluirLote(id) {
+  if (!window.confirm(`Tem certeza que deseja excluir o lote #${id}?`)) {
     return
   }
 
-  const token = localStorage.getItem('access_token')
   try {
-    const res = await fetch(`/api/lotes/${id}/`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    if (res.ok) {
-      alert('Lote excluído com sucesso!')
-      loteSelecionado.value = null
-      await carregarDados()
-    } else {
-      const erro = await res.json()
-      alert(erro.error || 'Acesso negado ou erro ao excluir.')
-    }
+    await apiClient.delete(`/lotes/${id}/`)
+    toastStore.success(`Lote #${id} excluído com sucesso!`)
+    await carregarDados()
   } catch (err) {
-    console.error('Erro na exclusão:', err)
+    toastStore.error(mensagemDeErro(err, 'Erro ao excluir o lote.'))
   }
 }
 
-onMounted(() => {
-  carregarDados()
-  verificarAcessos()
+onMounted(async () => {
+  await carregarPermissoes()
+  await carregarDados()
 })
 </script>
+
+<style scoped>
+.lote-view {
+  padding: 1.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.lote-container {
+  margin-top: 1.5rem;
+}
+
+.top-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.filtros-busca {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  max-width: 600px;
+}
+
+.busca-input-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.busca-input-wrapper .material-symbols-outlined {
+  position: absolute;
+  left: 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 20px;
+}
+
+.input-busca {
+  width: 100%;
+  padding: 0.6rem 0.75rem 0.6rem 2.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  font-size: 0.9rem;
+}
+
+.select-filtro {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  font-size: 0.9rem;
+}
+
+.btn-novo-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-novo-lote:hover {
+  background-color: var(--color-primary-dark);
+}
+
+.tabela-card {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.tabela-lotes {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.tabela-lotes th {
+  padding: 1rem;
+  background-color: var(--color-background);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tabela-lotes td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text);
+}
+
+.tabela-lotes tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.font-mono {
+  font-family: monospace;
+  color: var(--color-text-muted);
+}
+
+.font-destaque {
+  font-weight: 600;
+}
+
+.badge-status {
+  display: inline-block;
+  padding: 0.25rem 0.6rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-AT {
+  background-color: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.status-DI {
+  background-color: rgba(2, 136, 209, 0.12);
+  color: #0288d1;
+}
+
+.status-ES {
+  background-color: rgba(100, 116, 139, 0.12);
+  color: #64748b;
+}
+
+.status-BX {
+  background-color: rgba(237, 108, 2, 0.12);
+  color: #ed6c02;
+}
+
+.status-CO {
+  background-color: rgba(156, 39, 176, 0.12);
+  color: #9c27b0;
+}
+
+.status-PE {
+  background-color: rgba(211, 47, 47, 0.12);
+  color: #d32f2f;
+}
+
+.btn-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.btn-icon.btn-danger {
+  color: var(--color-danger, #d32f2f);
+}
+
+.btn-icon.btn-danger:hover {
+  background-color: rgba(211, 47, 47, 0.08);
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--color-border);
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.spinner-sm {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffffff;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-card {
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 540px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.modal-header h3 {
+  margin: 0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.btn-cancelar {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+.btn-salvar {
+  background-color: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+</style>

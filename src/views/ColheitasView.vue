@@ -1,416 +1,565 @@
 <template>
-  <PageLayout
-    title="Colheitas"
-    subtitle="Registro de baixas, perdas de maturação e histórico de produção."
-  >
-    <template #header-actions>
-      <WeatherWidget />
-    </template>
-
-    <section class="registration-container-estoque">
-      <div class="action-bar-estoque">
-        <div class="search-box-estoque">
-          <span class="material-symbols-outlined search-icon">search</span>
-          <input
-            type="text"
-            class="search-input"
-            v-model="busca"
-            placeholder="Buscar no histórico..."
-          />
+  <PageLayout>
+    <div class="colheitas-container">
+      <div class="header-actions">
+        <div>
+          <h2>Registro de Colheitas</h2>
+          <p class="subtitle">Histórico de colheitas e controle de perdas da produção</p>
         </div>
-        <button class="btn-generate" @click="modoCadastro = true">
-          <span class="material-symbols-outlined">agriculture</span> Registrar Colheita
+        <button class="btn-primary" @click="abrirModalNovaColheita">
+          <span class="material-symbols-outlined">add</span>
+          Registrar Colheita
         </button>
       </div>
 
-      <div class="inventory-split-view">
-        <div class="seed-list-container">
-          <div v-if="historicoFiltrado.length === 0" class="empty-state">
-            Nenhuma colheita registrada no histórico.
-          </div>
-          <div
-            v-else
-            v-for="c in historicoFiltrado"
-            :key="c.id"
-            class="mini-card"
-            :class="{ active: colheitaSelecionada?.id === c.id }"
-            @click="selecionar(c)"
-          >
-            <div class="mini-card-header">
-              <h4>{{ c.nomeCultura }} (Lote #{{ c.lote_id }})</h4>
-              <span class="badge badge-good">Colhido</span>
-            </div>
-            <div class="mini-card-cultura">
-              {{ new Date(c.data_colheita).toLocaleDateString('pt-BR') }}
-            </div>
+      <!-- CARREGANDO -->
+      <div v-if="carregando" class="loading-state">
+        <div class="spinner"></div>
+        <p>Carregando registros de colheita...</p>
+      </div>
 
-            <div
-              class="mini-card-qty"
-              style="
-                color: var(--primary-dark);
-                font-size: 1.05rem;
-                margin-top: 8px;
-                font-weight: 600;
-              "
-            >
-              <span class="material-symbols-outlined" style="font-size: 1.1rem">monitoring</span>
-              Taxa de Colheita do Lote: {{ c.taxaProducao }}%
-            </div>
-          </div>
+      <!-- ERRO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarDados"
+      />
+
+      <!-- TABELA DE COLHEITAS -->
+      <div v-else-if="colheitas.length > 0" class="tabela-card">
+        <div class="tabela-responsive">
+          <table class="tabela-colheitas">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Lote</th>
+                <th>Cultura</th>
+                <th>Data da Colheita</th>
+                <th>Qtd. Colhida</th>
+                <th>Qtd. Perda</th>
+                <th>Aproveitamento</th>
+                <th>Responsável</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="c in colheitas" :key="c.id">
+                <td class="font-mono">#{{ c.id }}</td>
+                <td class="font-mono">#{{ c.lote_id }}</td>
+                <td class="font-destaque">{{ obterNomeCulturaPorLote(c.lote_id) }}</td>
+                <td>{{ formatarData(c.data_colheita) }}</td>
+                <td>{{ parseNumero(c.quantidade_colhida).toFixed(2) }} {{ obterUnidadeLote(c.lote_id) }}</td>
+                <td :class="{ 'texto-perda': parseNumero(c.quantidade_perda) > 0 }">
+                  {{ parseNumero(c.quantidade_perda).toFixed(2) }} {{ obterUnidadeLote(c.lote_id) }}
+                </td>
+                <td>
+                  <span :class="['badge-taxa', classeTaxa(calcularTaxaAproveitamento(c))]">
+                    {{ calcularTaxaAproveitamento(c).toFixed(1) }}%
+                  </span>
+                </td>
+                <td>{{ obterNomeFuncionario(c.funcionario_id) }}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        <div class="seed-detail-panel">
-          <form v-if="modoCadastro" @submit.prevent="salvarColheita" class="form-grid-layout">
-            <div class="detail-header" style="grid-column: 1 / -1">
-              <h2><span class="material-symbols-outlined">agriculture</span> Nova Colheita</h2>
-              <p style="color: #666; font-size: 0.9rem">
-                O lote selecionado será finalizado e zerado da mesa atual.
-              </p>
-            </div>
+      <!-- VAZIO -->
+      <div v-else class="empty-state">
+        <span class="material-symbols-outlined empty-icon">agriculture</span>
+        <h3>Nenhuma colheita registrada</h3>
+        <p>Quando os lotes ativos atingirem o ciclo de maturação, registre a colheita aqui.</p>
+        <button class="btn-primary" @click="abrirModalNovaColheita">Registrar Primeira Colheita</button>
+      </div>
 
-            <div class="form-group full-width">
-              <label>Lote de Origem (Para Baixa)</label>
-              <select v-model="form.lote_id" required>
-                <option value="" disabled>Selecione um lote em desenvolvimento...</option>
-                <option v-for="l in lotesAtivos" :key="l.id" :value="l.id">
-                  LOTE #{{ l.id }} (Mesa {{ l.mesa_id }}) - Saldo Total: {{ l.quantidade }}
+      <!-- MODAL FORMULÁRIO DE COLHEITA -->
+      <div v-if="exibirModal" class="modal-overlay" @click.self="fecharModal">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Registrar Nova Colheita</h3>
+            <button class="btn-close" @click="fecharModal">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+
+          <form @submit.prevent="solicitarConfirmacaoColheita">
+            <div class="form-group">
+              <label for="lote-colheita">Lote a ser Colhido *</label>
+              <select id="lote-colheita" v-model="formulario.lote_id" required>
+                <option value="" disabled>Selecione um lote ativo</option>
+                <option v-for="l in lotesDisponiveis" :key="l.id" :value="l.id">
+                  Lote #{{ l.id }} - {{ obterNomeCulturaPorLote(l.id) }} (Saldo: {{ l.quantidade }} {{ l.unidade }})
                 </option>
               </select>
             </div>
 
-            <div
-              v-if="loteSelecionadoParaColheita"
-              class="form-group full-width"
-              style="
-                background: rgba(0, 0, 0, 0.02);
-                padding: 20px;
-                border-radius: 12px;
-                border: 1px solid #eee;
-              "
-            >
-              <label style="display: flex; justify-content: space-between; margin-bottom: 15px">
-                <span style="color: var(--primary-green); font-weight: 700"
-                  >Aproveitamento: {{ form.quantidade_colhida }}</span
-                >
-                <span style="color: #d32f2f; font-weight: 700" v-if="form.quantidade_perda > 0"
-                  >Perda: {{ form.quantidade_perda }}</span
-                >
-              </label>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="qtd-colhida">Quantidade Colhida *</label>
+                <input
+                  id="qtd-colhida"
+                  v-model.number="formulario.quantidade_colhida"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                />
+              </div>
 
-              <input
-                type="range"
-                v-model="form.quantidade_colhida"
-                :max="loteSelecionadoParaColheita.quantidade"
-                min="0"
-                step="1"
-                class="harvest-slider"
-              />
-
-              <div
-                style="
-                  display: flex;
-                  justify-content: space-between;
-                  font-size: 0.8rem;
-                  color: #888;
-                  margin-top: 8px;
-                "
-              >
-                <span>0 (Perda Total)</span>
-                <span>{{ loteSelecionadoParaColheita.quantidade }} (Sucesso Total)</span>
+              <div class="form-group">
+                <label for="qtd-perda">Quantidade de Perda</label>
+                <input
+                  id="qtd-perda"
+                  v-model.number="formulario.quantidade_perda"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                />
               </div>
             </div>
 
-            <div class="form-actions-right" style="grid-column: 1 / -1">
-              <button type="button" class="btn-outline" @click="modoCadastro = false">
+            <div class="aviso-irreversivel">
+              <span class="material-symbols-outlined">info</span>
+              <p>
+                O registro de colheita zera o saldo do lote, altera o status para 'Colhido' e gera movimentações automáticas de estoque.
+              </p>
+            </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn-secondary" :disabled="salvando" @click="fecharModal">
                 Cancelar
               </button>
-              <button type="submit" class="btn-save">Finalizar Lote</button>
+              <button type="submit" class="btn-primary" :disabled="salvando">
+                Avançar
+              </button>
             </div>
           </form>
-
-          <div v-else-if="colheitaSelecionada">
-            <div class="detail-header">
-              <h2>Registro de Colheita #{{ colheitaSelecionada.id }}</h2>
-              <span class="badge badge-good">Lote Finalizado</span>
-            </div>
-
-            <div class="detail-grid">
-              <div class="detail-item">
-                <label>Data da Colheita</label
-                ><span>{{
-                  new Date(colheitaSelecionada.data_colheita).toLocaleDateString('pt-BR')
-                }}</span>
-              </div>
-              <div class="detail-item">
-                <label>Lote Origem</label><span>LOTE #{{ colheitaSelecionada.lote_id }}</span>
-              </div>
-              <div class="detail-item">
-                <label>Auditor Responsável</label>
-                <span style="font-weight: 600; color: var(--primary-dark)">
-                  <span
-                    class="material-symbols-outlined"
-                    style="font-size: 1rem; vertical-align: middle; margin-right: 4px"
-                    >person</span
-                  >
-                  {{ colheitaSelecionada.nomeAuditor }}
-                </span>
-              </div>
-
-              <div
-                class="detail-item full-width qty-destaque"
-                style="background: rgba(76, 175, 80, 0.05); border: 1px dashed var(--primary-green)"
-              >
-                <label class="qty-label">Taxa de Produção (Sucesso)</label>
-                <span class="qty-value" style="color: #2e7d32"
-                  >{{ colheitaSelecionada.taxaProducao }}%</span
-                >
-              </div>
-
-              <div style="display: flex; gap: 15px; grid-column: 1 / -1; margin-top: 5px">
-                <div
-                  class="detail-item"
-                  style="flex: 1; background: #f9f9f9; padding: 12px; border-radius: 8px"
-                >
-                  <label style="font-size: 0.8rem">Volume Aproveitado</label>
-                  <span
-                    style="
-                      color: #2e7d32;
-                      font-weight: bold;
-                      display: block;
-                      margin-top: 5px;
-                      font-size: 1.1rem;
-                    "
-                  >
-                    {{ parseFloat(colheitaSelecionada.quantidade_colhida) }}
-                  </span>
-                </div>
-
-                <div
-                  class="detail-item"
-                  style="flex: 1; background: #fff5f5; padding: 12px; border-radius: 8px"
-                  v-if="parseFloat(colheitaSelecionada.quantidade_perda) > 0"
-                >
-                  <label style="font-size: 0.8rem; color: #c62828">Volume Descartado</label>
-                  <span
-                    style="
-                      color: #c62828;
-                      font-weight: bold;
-                      display: block;
-                      margin-top: 5px;
-                      font-size: 1.1rem;
-                    "
-                  >
-                    {{ parseFloat(colheitaSelecionada.quantidade_perda) }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else
-            class="detalhe-placeholder"
-            style="text-align: center; color: #aaa; margin-top: 100px"
-          >
-            <span class="material-symbols-outlined" style="font-size: 3.5rem">shopping_basket</span>
-            <p>Selecione um registro no histórico ao lado ou inicie uma nova colheita.</p>
-          </div>
         </div>
       </div>
-    </section>
+
+      <!-- MODAL DE CONFIRMAÇÃO IRREVERSÍVEL (C08) -->
+      <ModalConfirmacao
+        v-if="modalConfirmacaoAberto"
+        titulo="Confirmar Colheita Irreversível"
+        :mensagem="mensagemConfirmacao"
+        texto-confirmar="Sim, Confirmar Colheita"
+        texto-cancelar="Voltar e Revisar"
+        :carregando="salvando"
+        @confirmar="executarRegistroColheita"
+        @cancelar="modalConfirmacaoAberto = false"
+      />
+    </div>
   </PageLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
-import WeatherWidget from '@/components/WeatherWidget.vue'
+import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import ModalConfirmacao from '@/components/ModalConfirmacao.vue'
+import colheitaService from '@/services/colheitaService'
+import loteService from '@/services/loteService'
+import culturaService from '@/services/culturaService'
+import funcionarioService from '@/services/funcionarioService'
+import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { useToastStore } from '@/stores/toast'
 
-const lotesAtivos = ref([])
-const lotesGerais = ref([])
-const culturas = ref([])
+const toastStore = useToastStore()
+
 const colheitas = ref([])
-const funcionarios = ref([])
+const lotes = ref([])
+const culturas = ref([])
+// A16: Guarda apenas { id, nome } em memória para proteção de dados pessoais
+const funcionariosMinimos = ref([])
 
-const modoCadastro = ref(false)
-const colheitaSelecionada = ref(null)
-const busca = ref('')
+const carregando = ref(false)
+const salvando = ref(false)
+const erroCarregamento = ref('')
+const exibirModal = ref(false)
+const modalConfirmacaoAberto = ref(false)
 
-const form = ref({
+const formulario = ref({
   lote_id: '',
   quantidade_colhida: 0,
-  quantidade_perda: 0,
+  quantidade_perda: 0
 })
 
-const loteSelecionadoParaColheita = computed(() => {
-  return lotesAtivos.value.find((l) => l.id === form.value.lote_id) || null
+const lotesDisponiveis = computed(() => {
+  return lotes.value.filter((l) => l.status === 'AT' || l.status === 'DI' || l.status === 'ES')
 })
 
-watch(
-  () => form.value.lote_id,
-  (novoLoteId) => {
-    if (novoLoteId) {
-      const lote = lotesAtivos.value.find((l) => l.id === novoLoteId)
-      if (lote) {
-        form.value.quantidade_colhida = parseFloat(lote.quantidade)
-        form.value.quantidade_perda = 0
-      }
-    }
-  },
-)
-
-watch(
-  () => form.value.quantidade_colhida,
-  (novoValor) => {
-    if (loteSelecionadoParaColheita.value) {
-      const total = parseFloat(loteSelecionadoParaColheita.value.quantidade)
-      const colhido = parseFloat(novoValor)
-      const perda = total - colhido
-
-      form.value.quantidade_perda = perda > 0 ? perda : 0
-    }
-  },
-)
-
-const historicoEnriquecido = computed(() => {
-  return colheitas.value
-    .map((colheita) => {
-      const loteOrigem = lotesGerais.value.find((l) => l.id === colheita.lote_id)
-      let nomeCultura = 'Cultura Desconhecida'
-      if (loteOrigem) {
-        const cultura = culturas.value.find((c) => c.id === loteOrigem.cultura_id)
-        if (cultura) nomeCultura = cultura.nome_cultura
-      }
-
-      const auditor = funcionarios.value.find(
-        (f) => String(f.id) === String(colheita.funcionario_id),
-      )
-      let nomeAuditor = `Auditor #${colheita.funcionario_id}`
-      if (auditor) {
-        nomeAuditor =
-          auditor.nome ||
-          auditor.nome_completo ||
-          auditor.first_name ||
-          auditor.username ||
-          nomeAuditor
-      }
-
-      // ALTERADO AQUI: Cálculo da Taxa de Produção Específica do Lote
-      const colhido = parseFloat(colheita.quantidade_colhida) || 0
-      const perda = parseFloat(colheita.quantidade_perda) || 0
-      const totalProcessado = colhido + perda
-
-      // Calcula a porcentagem ou zera se der divisão por zero
-      const taxaProducao =
-        totalProcessado > 0 ? ((colhido / totalProcessado) * 100).toFixed(1) : '0.0'
-
-      return { ...colheita, nomeCultura, nomeAuditor, taxaProducao }
-    })
-    .reverse()
+const loteSelecionado = computed(() => {
+  if (!formulario.value.lote_id) return null
+  return lotes.value.find((l) => l.id === formulario.value.lote_id) || null
 })
 
-const historicoFiltrado = computed(() => {
-  return historicoEnriquecido.value.filter(
-    (c) =>
-      c.nomeCultura.toLowerCase().includes(busca.value.toLowerCase()) ||
-      c.lote_id.toString().includes(busca.value),
-  )
+const mensagemConfirmacao = computed(() => {
+  if (!loteSelecionado.value) return ''
+  return `Esta ação é irreversível. O lote #${loteSelecionado.value.id} terá seu saldo zerado e status alterado permanentemente para 'Colhido'. Confirma o registro de ${formulario.value.quantidade_colhida} colhidos e ${formulario.value.quantidade_perda || 0} de perda?`
 })
 
-const carregarDados = async () => {
-  const headers = { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
+async function carregarDados() {
+  carregando.value = true
+  erroCarregamento.value = ''
+
   try {
-    const [resLotes, resCulturas, resColheitas, resFuncionarios] = await Promise.all([
-      fetch('/api/lotes/', { headers }),
-      fetch('/api/cultura/', { headers }),
-      fetch('/api/colheita/', { headers }),
-      fetch('/api/funcionarios/', { headers }),
+    const [resColheitas, resLotes, resCulturas, resFuncs] = await Promise.all([
+      colheitaService.listar(),
+      loteService.listar(),
+      culturaService.listar(),
+      funcionarioService.listar()
     ])
 
-    if (resLotes.ok) {
-      lotesGerais.value = await resLotes.json()
-      lotesAtivos.value = lotesGerais.value.filter((l) => l.status !== 'CO' && l.status !== 'PE')
-    }
-    if (resCulturas.ok) culturas.value = await resCulturas.json()
-    if (resColheitas.ok) colheitas.value = await resColheitas.json()
-    if (resFuncionarios.ok) funcionarios.value = await resFuncionarios.json()
+    colheitas.value = resColheitas
+    lotes.value = resLotes
+    culturas.value = resCulturas
+
+    // A16: Mapeia apenas id e nome do funcionário, sem reter CPF ou telefone
+    funcionariosMinimos.value = resFuncs.map((f) => ({
+      id: f.id,
+      nome: f.nome_completo || f.usuario || f.username || `Funcionário #${f.id}`
+    }))
   } catch (err) {
-    console.error('Erro na carga de dados:', err)
+    erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar dados de colheita.')
+    toastStore.error(erroCarregamento.value)
+  } finally {
+    carregando.value = false
   }
 }
 
-const selecionar = (c) => {
-  colheitaSelecionada.value = c
-  modoCadastro.value = false
+function obterNomeCulturaPorLote(loteId) {
+  const lote = lotes.value.find((l) => l.id === loteId)
+  if (!lote) return '-'
+  const cultura = culturas.value.find((c) => c.id === lote.cultura_id)
+  return cultura ? cultura.nome_cultura : `Cultura #${lote.cultura_id}`
 }
 
-const salvarColheita = async () => {
-  const token = localStorage.getItem('access_token')
-  const payload = {
-    ...form.value,
-    data_colheita: new Date().toISOString().split('T')[0],
+function obterUnidadeLote(loteId) {
+  const lote = lotes.value.find((l) => l.id === loteId)
+  return lote ? lote.unidade : 'UN'
+}
+
+function obterNomeFuncionario(funcionarioId) {
+  if (!funcionarioId) return '-'
+  const f = funcionariosMinimos.value.find((item) => item.id === funcionarioId)
+  return f ? f.nome : `Funcionário #${funcionarioId}`
+}
+
+function calcularTaxaAproveitamento(c) {
+  const colhido = parseNumero(c.quantidade_colhida)
+  const perda = parseNumero(c.quantidade_perda)
+  const total = colhido + perda
+  if (total <= 0) return 100
+  return (colhido / total) * 100
+}
+
+function classeTaxa(taxa) {
+  if (taxa >= 90) return 'taxa-excelente'
+  if (taxa >= 75) return 'taxa-boa'
+  return 'taxa-baixa'
+}
+
+function formatarData(dataStr) {
+  if (!dataStr) return '-'
+  const [ano, mes, dia] = dataStr.split('-')
+  return `${dia}/${mes}/${ano}`
+}
+
+function abrirModalNovaColheita() {
+  formulario.value = {
+    lote_id: '',
+    quantidade_colhida: 0,
+    quantidade_perda: 0
+  }
+  exibirModal.value = true
+}
+
+function fecharModal() {
+  if (salvando.value) return
+  exibirModal.value = false
+}
+
+function solicitarConfirmacaoColheita() {
+  const colhido = Number(formulario.value.quantidade_colhida)
+  const perda = Number(formulario.value.quantidade_perda) || 0
+
+  if (colhido <= 0) {
+    toastStore.warning('A quantidade colhida deve ser maior que zero.')
+    return
   }
 
+  if (loteSelecionado.value && colhido + perda > parseNumero(loteSelecionado.value.quantidade)) {
+    toastStore.warning('A soma de colheita e perda excede o saldo atual do lote.')
+    return
+  }
+
+  modalConfirmacaoAberto.value = true
+}
+
+async function executarRegistroColheita() {
+  salvando.value = true
   try {
-    const res = await fetch('/api/colheita/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(payload),
+    // D02: Envia apenas lote_id, quantidade_colhida e quantidade_perda (sem data_colheita ou funcionario_id)
+    await colheitaService.registrarColheita({
+      lote_id: formulario.value.lote_id,
+      quantidade_colhida: formulario.value.quantidade_colhida,
+      quantidade_perda: formulario.value.quantidade_perda || 0
     })
 
-    if (res.ok) {
-      alert('Colheita registrada! O lote foi finalizado.')
-      form.value = { lote_id: '', quantidade_colhida: 0, quantidade_perda: 0 }
-      modoCadastro.value = false
-      await carregarDados()
-    } else {
-      const erroDRF = await res.json()
-      alert('Erro ao salvar: \n\n' + JSON.stringify(erroDRF, null, 2))
-    }
+    toastStore.success('Colheita registrada com sucesso! Lote finalizado.')
+    modalConfirmacaoAberto.value = false
+    exibirModal.value = false
+    await carregarDados()
   } catch (err) {
-    console.error(err)
+    toastStore.error(mensagemDeErro(err, 'Erro ao registrar colheita no servidor.'))
+  } finally {
+    salvando.value = false
   }
 }
 
-onMounted(() => carregarDados())
+onMounted(() => {
+  carregarDados()
+})
 </script>
 
 <style scoped>
-/* Estilizando o Slider para ficar com a cara do sistema */
-.harvest-slider {
-  -webkit-appearance: none;
+.colheitas-container {
+  padding: 1.5rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.subtitle {
+  color: var(--color-text-muted, #64748b);
+  margin-top: 0.25rem;
+  font-size: 0.95rem;
+}
+
+.tabela-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.tabela-responsive {
+  overflow-x: auto;
+}
+
+.tabela-colheitas {
   width: 100%;
-  height: 10px;
-  border-radius: 5px;
-  background: linear-gradient(90deg, #d32f2f, var(--primary-green));
-  outline: none;
-  opacity: 0.9;
-  transition: opacity 0.2s;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
 }
 
-.harvest-slider:hover {
-  opacity: 1;
+.tabela-colheitas th {
+  padding: 1rem;
+  background-color: var(--color-background, #f8fafc);
+  color: var(--color-text-muted, #64748b);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
 
-.harvest-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid var(--primary-dark);
+.tabela-colheitas td {
+  padding: 1rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-text, #1e293b);
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+.font-destaque {
+  font-weight: 600;
+}
+
+.texto-perda {
+  color: var(--color-danger, #ef4444);
+  font-weight: 500;
+}
+
+.badge-taxa {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.taxa-excelente {
+  background-color: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.taxa-boa {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #b45309;
+}
+
+.taxa-baixa {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--color-primary, #16a34a);
+  color: #fff;
+  border: none;
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md, 8px);
+  font-weight: 500;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  transition: background-color 0.2s;
 }
 
-.harvest-slider::-moz-range-thumb {
-  width: 25px;
-  height: 25px;
-  border-radius: 50%;
-  background: #fff;
-  border: 3px solid var(--primary-dark);
+.btn-primary:hover {
+  background-color: var(--color-primary-dark, #15803d);
+}
+
+.btn-secondary {
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.625rem 1.25rem;
+  border-radius: var(--radius-md, 8px);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.loading-state,
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px dashed var(--color-border, #e2e8f0);
+}
+
+.empty-icon {
+  font-size: 48px;
+  color: var(--color-text-muted, #64748b);
+  margin-bottom: 1rem;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #16a34a);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 520px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.modal-header h3 {
+  margin: 0;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted, #64748b);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.9rem;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.aviso-irreversivel {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: var(--radius-md, 8px);
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.aviso-irreversivel .material-symbols-outlined {
+  color: var(--color-danger, #ef4444);
+  font-size: 20px;
+}
+
+.aviso-irreversivel p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #991b1b;
+  line-height: 1.4;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
 }
 </style>

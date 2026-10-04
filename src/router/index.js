@@ -101,6 +101,11 @@ const routes = [
     name: 'configuracoes',
     component: ConfiguracaoView,
     meta: { requiresAuth: true }
+  },
+  {
+    // Caminho inexistente volta para a raiz (login); se já estiver logado, o guard leva ao dashboard
+    path: '/:pathMatch(.*)*',
+    redirect: '/'
   }
 ]
 

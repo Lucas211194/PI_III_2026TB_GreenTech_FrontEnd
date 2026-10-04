@@ -1,328 +1,567 @@
 <template>
-  <PageLayout
-    title="Telemetria & Sensores IoT"
-    subtitle="Monitoramento contínuo de temperatura, umidade e luminosidade."
-  >
-    <template #header-actions>
-      <div class="filtros-toolbar">
-        <label for="filtro-estufa" class="sr-only">Selecione a Estufa</label>
-        <select
-          id="filtro-estufa"
-          v-model="filtroEstufa"
-          class="select-ergonomico"
-          @change="carregarLeituras"
-        >
-          <option value="todas">Todas as Estufas</option>
-          <option value="estufa-a">Estufa Principal A</option>
-          <option value="estufa-b">Estufa de Mudas B</option>
-        </select>
+  <div class="sensores-view">
+    <DashHeader
+      title="Monitoramento de Sensores"
+      subtitle="Leituras climáticas em tempo real registradas nas mesas de cultivo"
+    />
 
-        <button
-          type="button"
-          class="btn-atualizar"
-          @click="carregarLeituras"
-          :disabled="carregando"
-        >
-          <span class="material-symbols-outlined" style="font-size: 1.1rem; vertical-align: -3px"
-            >refresh</span
-          >
-          {{ carregando ? 'Lendo...' : 'Atualizar' }}
+    <div class="sensores-container">
+      <!-- FILTROS E AÇÕES -->
+      <div class="toolbar-sensores">
+        <div class="filtros-wrapper">
+          <div class="filtro-item">
+            <label for="filtro-estufa">Filtrar por Estufa:</label>
+            <select id="filtro-estufa" v-model="filtroEstufaId" class="select-filtro">
+              <option value="">Todas as estufas</option>
+              <option v-for="estufa in estufas" :key="estufa.id" :value="estufa.id">
+                {{ estufa.nome_setor }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <button class="btn-atualizar" :disabled="carregando" @click="carregarDados">
+          <span class="material-symbols-outlined" :class="{ 'anim-spin': carregando }">refresh</span>
+          Atualizar Dados
         </button>
       </div>
-    </template>
 
-    <div class="sensores-view-container">
-      <!-- Cards com Visão Rápida dos Sensores (Mobile First) -->
-      <section class="cards-metricas-grid">
-        <div class="metrica-card">
-          <span class="material-symbols-outlined metrica-icon">thermostat</span>
-          <div class="metrica-content">
-            <span class="metrica-label">Temperatura Média</span>
-            <strong class="metrica-valor">{{ medias.temperatura }}°C</strong>
+      <!-- CARREGANDO -->
+      <div v-if="carregando && leiturasClima.length === 0" class="loading-state">
+        <div class="spinner"></div>
+        <p>Carregando dados dos sensores climáticos...</p>
+      </div>
+
+      <!-- ERRO -->
+      <ErroCarregamento
+        v-else-if="erroCarregamento && leiturasClima.length === 0"
+        :mensagem="erroCarregamento"
+        @tentar-novamente="carregarDados"
+      />
+
+      <!-- CONTEÚDO PRINCIPAL -->
+      <div v-else>
+        <!-- CARDS DE MÉDIAS ATUAIS (CALCULADAS DAS LEITURAS REAIS) -->
+        <div class="kpis-grid">
+          <div class="kpi-card">
+            <div class="kpi-icon temp">
+              <span class="material-symbols-outlined">thermostat</span>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Temperatura Média</span>
+              <strong class="kpi-valor">
+                {{ mediasCalculadas.temperatura !== null ? `${mediasCalculadas.temperatura}°C` : '--' }}
+              </strong>
+              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon umid">
+              <span class="material-symbols-outlined">humidity_percentage</span>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Umidade Média</span>
+              <strong class="kpi-valor">
+                {{ mediasCalculadas.umidade !== null ? `${mediasCalculadas.umidade}%` : '--' }}
+              </strong>
+              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon lum">
+              <span class="material-symbols-outlined">light_mode</span>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Luminosidade Média</span>
+              <strong class="kpi-valor">
+                {{ mediasCalculadas.luminosidade !== null ? `${mediasCalculadas.luminosidade} Lux` : '--' }}
+              </strong>
+              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+            </div>
+          </div>
+
+          <div class="kpi-card">
+            <div class="kpi-icon vent">
+              <span class="material-symbols-outlined">air</span>
+            </div>
+            <div class="kpi-info">
+              <span class="kpi-label">Ventilação Média</span>
+              <strong class="kpi-valor">
+                {{ mediasCalculadas.ventilacao !== null ? `${mediasCalculadas.ventilacao}%` : '--' }}
+              </strong>
+              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+            </div>
           </div>
         </div>
 
-        <div class="metrica-card">
-          <span class="material-symbols-outlined metrica-icon">water_drop</span>
-          <div class="metrica-content">
-            <span class="metrica-label">Umidade Média</span>
-            <strong class="metrica-valor">{{ medias.umidade }}%</strong>
+        <!-- TABELA DE REGISTROS -->
+        <div class="tabela-card">
+          <div class="tabela-header">
+            <h3>Leituras Recentes de Clima</h3>
+            <span class="badge-total">{{ leiturasFiltradas.length }} registros</span>
+          </div>
+
+          <div class="tabela-responsive">
+            <table class="tabela-dados">
+              <thead>
+                <tr>
+                  <th>Data / Hora</th>
+                  <th>Mesa</th>
+                  <th>Estufa</th>
+                  <th>Temperatura</th>
+                  <th>Umidade</th>
+                  <th>Luminosidade</th>
+                  <th>Ventilação</th>
+                  <th>Status Climático</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in leiturasFiltradas" :key="item.id">
+                  <td class="font-mono">{{ formatarDataHora(item.data_registro) }}</td>
+                  <td class="font-destaque">{{ obterIdentificacaoMesa(item.mesa_id) }}</td>
+                  <td>{{ obterNomeEstufaPorMesa(item.mesa_id) }}</td>
+                  <td>{{ parseNumero(item.temperatura).toFixed(1) }} °C</td>
+                  <td>{{ parseNumero(item.umidade).toFixed(1) }} %</td>
+                  <td>{{ parseNumero(item.luminosidade).toFixed(0) }} Lux</td>
+                  <td>{{ parseNumero(item.ventilacao).toFixed(1) }} %</td>
+                  <td>
+                    <span :class="['badge-status', `status-${calcularStatus(item).tipo}`]">
+                      {{ calcularStatus(item).rotulo }}
+                    </span>
+                    <span v-if="calcularStatus(item).isPadrao" class="tag-padrao" title="Sem cultura vinculada">
+                      limite padrão
+                    </span>
+                  </td>
+                  <td class="col-obs">{{ item.observacoes || '-' }}</td>
+                </tr>
+
+                <tr v-if="leiturasFiltradas.length === 0">
+                  <td colspan="9" class="empty-row">
+                    Nenhum registro climático encontrado para os filtros selecionados.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-
-        <div class="metrica-card">
-          <span class="material-symbols-outlined metrica-icon">wb_sunny</span>
-          <div class="metrica-content">
-            <span class="metrica-label">Luminosidade</span>
-            <strong class="metrica-valor">{{ medias.luminosidade }} Lux</strong>
-          </div>
-        </div>
-      </section>
-
-      <!-- Tabela com Suporte Assistido a Scroll Horizontal -->
-      <section class="tabela-section">
-        <h3>Histórico de Leituras Recebidas</h3>
-
-        <div class="table-responsive-wrapper">
-          <table class="sensores-table">
-            <thead>
-              <tr>
-                <th scope="col">ID Sensor</th>
-                <th scope="col">Localização</th>
-                <th scope="col">Temperatura</th>
-                <th scope="col">Umidade</th>
-                <th scope="col">Luminosidade</th>
-                <th scope="col">Horário</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="carregando">
-                <td colspan="7" class="loading-cell">Sincronizando com os nós sensores...</td>
-              </tr>
-              <tr v-else-if="leituras.length === 0">
-                <td colspan="7" class="empty-cell">
-                  Nenhuma leitura encontrada para os filtros selecionados.
-                </td>
-              </tr>
-              <tr v-for="item in leituras" :key="item.id">
-                <td>
-                  <strong>#{{ item.sensorId }}</strong>
-                </td>
-                <td>{{ item.estufa }}</td>
-                <td>{{ item.temperatura }}°C</td>
-                <td>{{ item.umidade }}%</td>
-                <td>{{ item.luminosidade }} Lux</td>
-                <td>{{ item.timestamp }}</td>
-                <td>
-                  <span :class="['badge-status', `status-${item.status}`]">
-                    {{ item.status === 'ok' ? 'Normal' : 'Atenção' }}
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </div>
     </div>
-  </PageLayout>
+  </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { apiClient } from '@/services/api'
+import { ref, computed, onMounted } from 'vue'
+import DashHeader from '@/components/DashHeader.vue'
+import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import apiClient from '@/services/api'
+import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
-import PageLayout from '@/components/PageLayout.vue'
 
 const toastStore = useToastStore()
 
-/**
- * CONTRATO DE DADOS PARA O DESENVOLVEDOR BACK-END:
- * GET /api/sensores/leituras/?estufa={filtroEstufa}
- * Resposta esperada:
- * Array<{ id: number, sensorId: string, estufa: string, temperatura: number, umidade: number, luminosidade: number, timestamp: string, status: 'ok' | 'alerta' }>
- */
-const leituras = ref([])
+const leiturasClima = ref([])
+const mesas = ref([])
+const estufas = ref([])
+const culturas = ref([])
+const lotes = ref([])
+
 const carregando = ref(false)
-const filtroEstufa = ref('todas')
+const erroCarregamento = ref('')
+const filtroEstufaId = ref('')
 
-const medias = ref({
-  temperatura: 24.5,
-  umidade: 68,
-  luminosidade: 4200,
-})
-
-async function carregarLeituras() {
+async function carregarDados() {
   carregando.value = true
+  erroCarregamento.value = ''
   try {
-    const dados = await apiClient(`/sensores/leituras/?estufa=${filtroEstufa.value}`)
-    leituras.value = dados
-  } catch (error) {
-    // Fallback de dados para garantir operação contínua mesmo se os nós IoT estiverem offline
-    leituras.value = [
-      {
-        id: 1,
-        sensorId: 'SNS-A01',
-        estufa: 'Estufa Principal A',
-        temperatura: 24.2,
-        umidade: 67,
-        luminosidade: 4500,
-        timestamp: '17:15:02',
-        status: 'ok',
-      },
-      {
-        id: 2,
-        sensorId: 'SNS-A02',
-        estufa: 'Estufa Principal A',
-        temperatura: 25.1,
-        umidade: 62,
-        luminosidade: 4300,
-        timestamp: '17:14:50',
-        status: 'ok',
-      },
-      {
-        id: 3,
-        sensorId: 'SNS-B01',
-        estufa: 'Estufa de Mudas B',
-        temperatura: 28.4,
-        umidade: 45,
-        luminosidade: 3800,
-        timestamp: '17:14:12',
-        status: 'alerta',
-      },
-    ]
+    const [resClima, resMesas, resEstufas, resCulturas, resLotes] = await Promise.all([
+      apiClient.get('/clima/'),
+      apiClient.get('/mesa/'),
+      apiClient.get('/estufa/'),
+      apiClient.get('/cultura/'),
+      apiClient.get('/lotes/'),
+    ])
+
+    const listaClima = extrairLista(resClima.data)
+    // Ordenar no front-end por data_registro decrescente
+    listaClima.sort((a, b) => new Date(b.data_registro) - new Date(a.data_registro))
+
+    leiturasClima.value = listaClima
+    mesas.value = extrairLista(resMesas.data)
+    estufas.value = extrairLista(resEstufas.data)
+    culturas.value = extrairLista(resCulturas.data)
+    lotes.value = extrairLista(resLotes.data)
+  } catch (err) {
+    erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar os dados climáticos dos sensores.')
+    toastStore.error(erroCarregamento.value)
   } finally {
     carregando.value = false
   }
 }
 
+function obterIdentificacaoMesa(mesaId) {
+  const m = mesas.value.find((item) => item.id === mesaId)
+  return m ? m.identificacao : `Mesa #${mesaId}`
+}
+
+function obterNomeEstufaPorMesa(mesaId) {
+  const m = mesas.value.find((item) => item.id === mesaId)
+  if (!m) return '-'
+  if (m.estufa_nome) return m.estufa_nome
+  if (m.estufa) {
+    const est = estufas.value.find((e) => e.id === m.estufa)
+    return est ? est.nome_setor : `Estufa #${m.estufa}`
+  }
+  return 'Sem Estufa'
+}
+
+const leiturasFiltradas = computed(() => {
+  if (!filtroEstufaId.value) return leiturasClima.value
+
+  const idEstufaNum = Number(filtroEstufaId.value)
+  return leiturasClima.value.filter((leitura) => {
+    const m = mesas.value.find((item) => item.id === leitura.mesa_id)
+    return m && Number(m.estufa) === idEstufaNum
+  })
+})
+
+const mediasCalculadas = computed(() => {
+  const lista = leiturasFiltradas.value
+  if (lista.length === 0) {
+    return { temperatura: null, umidade: null, luminosidade: null, ventilacao: null }
+  }
+
+  const totais = lista.reduce(
+    (acc, item) => {
+      acc.temp += parseNumero(item.temperatura)
+      acc.umid += parseNumero(item.umidade)
+      acc.lum += parseNumero(item.luminosidade)
+      acc.vent += parseNumero(item.ventilacao)
+      return acc
+    },
+    { temp: 0, umid: 0, lum: 0, vent: 0 },
+  )
+
+  const qtd = lista.length
+  return {
+    temperatura: (totais.temp / qtd).toFixed(1),
+    umidade: (totais.umid / qtd).toFixed(1),
+    luminosidade: Math.round(totais.lum / qtd),
+    ventilacao: (totais.vent / qtd).toFixed(1),
+  }
+})
+
+function calcularStatus(leitura) {
+  const temp = parseNumero(leitura.temperatura)
+  const umid = parseNumero(leitura.umidade)
+
+  // Busca lote ativo na mesa para encontrar os limites da cultura
+  const loteAtivo = lotes.value.find(
+    (l) => l.mesa_id === leitura.mesa_id && (l.status === 'AT' || l.status === 'DI'),
+  )
+
+  let minTemp = 16
+  let maxTemp = 30
+  let umidIdeal = 50
+  let isPadrao = true
+
+  if (loteAtivo) {
+    const cultura = culturas.value.find((c) => c.id === loteAtivo.cultura_id)
+    if (cultura) {
+      minTemp = parseNumero(cultura.temperatura_minima, 16)
+      maxTemp = parseNumero(cultura.temperatura_maxima, 30)
+      umidIdeal = parseNumero(cultura.umidade_ideal, 50)
+      isPadrao = false
+    }
+  }
+
+  const tempFora = temp < minTemp || temp > maxTemp
+  const umidFora = Math.abs(umid - umidIdeal) > 15
+
+  if (tempFora || umidFora) {
+    return { rotulo: 'Atenção', tipo: 'alerta', isPadrao }
+  }
+  return { rotulo: 'Normal', tipo: 'normal', isPadrao }
+}
+
+function formatarDataHora(dataHoraStr) {
+  if (!dataHoraStr) return '-'
+  const d = new Date(dataHoraStr)
+  if (Number.isNaN(d.getTime())) return dataHoraStr
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 onMounted(() => {
-  carregarLeituras()
+  carregarDados()
 })
 </script>
 
 <style scoped>
-.sensores-view-container {
+.sensores-view {
   padding: 1.5rem;
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
 }
 
-.sensores-header {
+.sensores-container {
+  margin-top: 1.5rem;
+}
+
+.toolbar-sensores {
   display: flex;
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-.subtitle {
-  color: var(--cor-texto-secundario, #607d8b);
-  margin-top: 0.25rem;
-}
-
-.filtros-toolbar {
+.filtros-wrapper {
   display: flex;
-  gap: 0.75rem;
-  align-items: center;
+  gap: 1rem;
 }
 
-.select-ergonomico {
-  min-height: 44px;
-  min-width: 180px;
-  padding: 0.5rem 1rem;
+.filtro-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.select-filtro {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-md, 8px);
-  border: 1px solid var(--cor-borda, #cfd8dc);
-  background: #ffffff;
-  font-size: 0.95rem;
+  background-color: var(--color-surface, #ffffff);
+  font-size: 0.875rem;
 }
 
 .btn-atualizar {
-  min-height: 44px;
-  padding: 0 1.25rem;
-  background-color: var(--cor-verde-primaria, #2e7d32);
-  color: #ffffff;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.5rem 1rem;
   border-radius: var(--radius-md, 8px);
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.cards-metricas-grid {
+.btn-atualizar:hover {
+  background-color: var(--color-background, #f8fafc);
+}
+
+.anim-spin {
+  animation: spin 1s linear infinite;
+}
+
+.kpis-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 1.25rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-.metrica-card {
-  background: var(--cor-fundo-card, #ffffff);
+.kpi-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-lg, 12px);
   padding: 1.25rem;
   display: flex;
   align-items: center;
   gap: 1rem;
-  border: 1px solid var(--cor-borda, #eceff1);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
-.metrica-icon {
-  font-size: 2.2rem;
+.kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md, 8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.metrica-content {
+.kpi-icon.temp {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.kpi-icon.umid {
+  background: rgba(2, 136, 209, 0.1);
+  color: #0288d1;
+}
+
+.kpi-icon.lum {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.kpi-icon.vent {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.kpi-info {
   display: flex;
   flex-direction: column;
 }
 
-.metrica-label {
-  font-size: 0.85rem;
-  color: var(--cor-texto-secundario, #607d8b);
-}
-
-.metrica-valor {
-  font-size: 1.4rem;
-  color: var(--cor-texto-principal, #263238);
-}
-
-.tabela-section h3 {
-  margin-bottom: 1rem;
-  color: var(--cor-texto-principal, #263238);
-}
-
-.sensores-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 650px; /* Garante integridade das colunas disparando scroll */
-}
-
-.sensores-table th,
-.sensores-table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid var(--cor-borda, #eceff1);
-  font-size: 0.9rem;
-}
-
-.sensores-table th {
-  background-color: #f8fafc;
-  color: var(--cor-texto-principal, #37474f);
+.kpi-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--color-text-muted, #64748b);
   font-weight: 600;
 }
 
-.badge-status {
-  padding: 0.25rem 0.6rem;
-  border-radius: 12px;
-  font-size: 0.75rem;
-  font-weight: bold;
+.kpi-valor {
+  font-size: 1.35rem;
+  color: var(--color-text, #1e293b);
+  font-weight: 700;
+  margin: 0.15rem 0;
 }
 
-.status-ok {
-  background-color: #e8f5e9;
+.kpi-sub {
+  font-size: 0.7rem;
+  color: var(--color-text-muted, #94a3b8);
+}
+
+.tabela-card {
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-lg, 12px);
+  overflow: hidden;
+}
+
+.tabela-header {
+  padding: 1.25rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.tabela-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.badge-total {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--color-background, #f8fafc);
+  border-radius: var(--radius-sm, 6px);
+  color: var(--color-text-muted, #64748b);
+}
+
+.tabela-responsive {
+  overflow-x: auto;
+}
+
+.tabela-dados {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.tabela-dados th {
+  padding: 0.85rem 1rem;
+  background-color: var(--color-background, #f8fafc);
+  color: var(--color-text-muted, #64748b);
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+}
+
+.tabela-dados td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border, #e2e8f0);
+  color: var(--color-text, #1e293b);
+}
+
+.font-mono {
+  font-family: monospace;
+}
+
+.font-destaque {
+  font-weight: 600;
+}
+
+.col-obs {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge-status {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-status.status-normal {
+  background-color: rgba(46, 125, 50, 0.12);
   color: #2e7d32;
 }
 
-.status-alerta {
-  background-color: #ffebee;
-  color: #c62828;
+.badge-status.status-alerta {
+  background-color: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
 }
 
-.loading-cell,
-.empty-cell {
+.tag-padrao {
+  display: inline-block;
+  font-size: 0.65rem;
+  color: var(--color-text-muted, #94a3b8);
+  margin-left: 0.35rem;
+  font-style: italic;
+}
+
+.empty-row {
   text-align: center;
-  padding: 2.5rem;
-  color: var(--cor-texto-secundario, #78909c);
+  padding: 2.5rem !important;
+  color: var(--color-text-muted, #64748b);
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+  text-align: center;
+  background: var(--color-surface, #ffffff);
+  border-radius: var(--radius-lg, 12px);
+  border: 1px dashed var(--color-border, #e2e8f0);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border, #e2e8f0);
+  border-top-color: var(--color-primary, #16a34a);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
