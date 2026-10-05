@@ -42,6 +42,7 @@
               <th>Nome / Setor</th>
               <th>Tipo de Cultivo</th>
               <th>Capacidade Máxima</th>
+              <th>Alocada nas Mesas</th>
               <th width="100">Ações</th>
             </tr>
           </thead>
@@ -51,6 +52,11 @@
               <td class="font-destaque">{{ est.nome_setor }}</td>
               <td>{{ est.tipo_cultivo || '-' }}</td>
               <td>{{ est.capacidade_maxima }}</td>
+              <td>
+                <span :class="{ 'texto-lotada': capacidadeAlocada(est.id) >= Number(est.capacidade_maxima) }">
+                  {{ capacidadeAlocada(est.id) }} / {{ est.capacidade_maxima }}
+                </span>
+              </td>
               <td>
                 <div class="acoes-btns">
                   <button class="btn-icon" title="Editar" @click="editarEstufa(est)">
@@ -131,7 +137,16 @@
 
           <div class="form-group">
             <label for="est-capacidade">Capacidade Máxima *</label>
-            <input id="est-capacidade" v-model.number="formEstufa.capacidade_maxima" type="number" min="1" required />
+            <input
+              id="est-capacidade"
+              v-model.number="formEstufa.capacidade_maxima"
+              type="number"
+              :min="Math.max(1, minimoCapacidadeEstufa)"
+              required
+            />
+            <small v-if="modoEdicaoEstufa && minimoCapacidadeEstufa > 0" class="dica-capacidade">
+              As mesas já somam {{ minimoCapacidadeEstufa }}; a capacidade não pode ser menor que isso.
+            </small>
           </div>
 
           <div class="modal-actions">
@@ -167,7 +182,17 @@
           <div class="form-row">
             <div class="form-group">
               <label for="mesa-capacidade">Capacidade Máxima *</label>
-              <input id="mesa-capacidade" v-model.number="formMesa.capacidade_maxima" type="number" min="1" required />
+              <input
+                id="mesa-capacidade"
+                v-model.number="formMesa.capacidade_maxima"
+                type="number"
+                min="1"
+                :max="disponivelParaMesa ?? undefined"
+                required
+              />
+              <small v-if="disponivelParaMesa !== null" :class="['dica-capacidade', { 'dica-erro': capacidadeMesaExcedida }]">
+                Disponível na estufa: {{ disponivelParaMesa }}
+              </small>
             </div>
 
             <div class="form-group">
@@ -194,7 +219,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import estruturaService from '@/services/estruturaService'
 import { mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
@@ -232,6 +257,32 @@ async function carregarDados() {
   }
 }
 
+// Soma da capacidade das mesas já vinculadas à estufa (opcionalmente ignorando uma mesa, ao editar)
+function capacidadeAlocada(estufaId, ignorarMesaId = null) {
+  return mesas.value
+    .filter((m) => m.estufa === estufaId && m.id !== ignorarMesaId)
+    .reduce((total, m) => total + Number(m.capacidade_maxima || 0), 0)
+}
+
+// Edição de estufa: não pode ficar abaixo do que as mesas já ocupam
+const minimoCapacidadeEstufa = computed(() =>
+  formEstufa.value.id ? capacidadeAlocada(formEstufa.value.id) : 0,
+)
+
+// Modal de mesa: quanto ainda cabe na estufa selecionada (null = mesa sem estufa, sem limite)
+const disponivelParaMesa = computed(() => {
+  const estufaId = formMesa.value.estufa
+  if (!estufaId) return null
+  const estufa = estufas.value.find((e) => e.id === estufaId)
+  if (!estufa) return null
+  const livre = Number(estufa.capacidade_maxima) - capacidadeAlocada(estufaId, formMesa.value.id)
+  return Math.max(livre, 0)
+})
+
+const capacidadeMesaExcedida = computed(
+  () => disponivelParaMesa.value !== null && Number(formMesa.value.capacidade_maxima) > disponivelParaMesa.value,
+)
+
 function obterNomeEstufa(estufaId) {
   if (!estufaId) return 'Sem Estufa'
   const est = estufas.value.find((e) => e.id === estufaId)
@@ -263,6 +314,12 @@ function editarMesa(m) {
 }
 
 async function salvarEstufa() {
+  if (modoEdicaoEstufa.value && Number(formEstufa.value.capacidade_maxima) < minimoCapacidadeEstufa.value) {
+    toastStore.error(
+      `As mesas desta estufa já somam ${minimoCapacidadeEstufa.value}. A capacidade não pode ser menor que isso.`,
+    )
+    return
+  }
   salvando.value = true
   try {
     if (modoEdicaoEstufa.value && formEstufa.value.id) {
@@ -283,6 +340,12 @@ async function salvarEstufa() {
 }
 
 async function salvarMesa() {
+  if (capacidadeMesaExcedida.value) {
+    toastStore.error(
+      `A capacidade da mesa (${formMesa.value.capacidade_maxima}) excede o espaço disponível na estufa (${disponivelParaMesa.value}).`,
+    )
+    return
+  }
   salvando.value = true
   try {
     if (modoEdicaoMesa.value && formMesa.value.id) {
@@ -556,5 +619,18 @@ onMounted(() => {
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   font-size: 0.8rem;
+}
+
+.dica-capacidade {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.dica-erro,
+.texto-lotada {
+  color: var(--color-danger, #d32f2f);
+  font-weight: 600;
 }
 </style>
