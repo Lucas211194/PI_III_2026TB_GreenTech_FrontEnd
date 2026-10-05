@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Meu Perfil" subtitle="Gerenciamento de informações da conta e credenciais de acesso">
   <div class="perfil-view">
-    <DashHeader
-      title="Meu Perfil"
-      subtitle="Gerenciamento de informações da conta e credenciais de acesso"
-    />
-
     <div class="perfil-container">
       <!-- CARREGANDO -->
       <div v-if="carregando" class="loading-state">
@@ -218,11 +214,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import funcionarioService from '@/services/funcionarioService'
 import { mensagemDeErro } from '@/services/apiHelpers'

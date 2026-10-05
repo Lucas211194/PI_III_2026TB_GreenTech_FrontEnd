@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Alertas e Notificações" subtitle="Monitoramento de anomalias climáticas e limites operacionais da estufa">
   <div class="alertas-view">
-    <DashHeader
-      title="Alertas e Notificações"
-      subtitle="Monitoramento de anomalias climáticas e limites operacionais da estufa"
-    />
-
     <div class="alertas-container">
       <!-- BARRA SUPERIOR: FILTROS E ATUALIZAÇÃO -->
       <div class="toolbar-alertas">
@@ -91,11 +87,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import climaService from '@/services/climaService'
 import estruturaService from '@/services/estruturaService'

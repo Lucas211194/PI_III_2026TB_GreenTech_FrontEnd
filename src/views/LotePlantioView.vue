@@ -1,7 +1,6 @@
 <template>
+  <PageLayout title="Gestão de Lotes de Plantio" subtitle="Controle de semeadura, cultivo e monitoramento por mesa">
   <div class="lote-view">
-    <DashHeader title="Gestão de Lotes de Plantio" subtitle="Controle de semeadura, cultivo e monitoramento por mesa" />
-
     <div class="lote-container">
       <!-- AÇÕES DO TOPO E FILTROS -->
       <div class="top-actions">
@@ -204,11 +203,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
 import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'

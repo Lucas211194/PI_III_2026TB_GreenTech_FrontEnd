@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Monitoramento de Sensores" subtitle="Leituras climáticas em tempo real registradas nas mesas de cultivo">
   <div class="sensores-view">
-    <DashHeader
-      title="Monitoramento de Sensores"
-      subtitle="Leituras climáticas em tempo real registradas nas mesas de cultivo"
-    />
-
     <div class="sensores-container">
       <!-- FILTROS E AÇÕES -->
       <div class="toolbar-sensores">
@@ -150,11 +146,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
 import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'

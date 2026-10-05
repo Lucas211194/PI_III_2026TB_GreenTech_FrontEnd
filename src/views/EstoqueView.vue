@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Gestão de Estoque" subtitle="Controle de lotes, produtos em estoque, insumos e movimentações">
   <div class="estoque-view">
-    <DashHeader
-      title="Gestão de Estoque"
-      subtitle="Controle de lotes, produtos em estoque, insumos e movimentações"
-    />
-
     <div class="estoque-container">
       <!-- NAVEGAÇÃO ENTRE ABAS -->
       <div class="tabs-nav">
@@ -532,11 +528,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import estoqueService from '@/services/estoqueService'
 import loteService from '@/services/loteService'

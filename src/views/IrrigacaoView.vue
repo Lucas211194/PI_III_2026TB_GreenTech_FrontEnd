@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Sistema de Irrigação" subtitle="Monitoramento das válvulas solenoides e histórico de fluxo de água">
   <div class="irrigacao-view">
-    <DashHeader
-      title="Sistema de Irrigação"
-      subtitle="Monitoramento das válvulas solenoides e histórico de fluxo de água"
-    />
-
     <div class="irrigacao-container">
       <!-- MÓDULO 1: REGISTROS REAIS DE IRRIGAÇÃO (GET /irrigacao/) -->
       <section class="secao-registros">
@@ -131,11 +127,12 @@
       </section>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
 import apiClient from '@/services/api'

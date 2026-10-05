@@ -1,7 +1,6 @@
 <template>
+  <PageLayout title="Importar Nota Fiscal" subtitle="Processamento automático via OCR">
   <div class="ocr-view">
-    <DashHeader title="Importar Nota Fiscal" subtitle="Processamento automático via OCR" />
-
     <div class="ocr-content">
       <!-- ÁREA DE UPLOAD -->
       <section v-if="!dadosProcessados" class="upload-section">
@@ -165,11 +164,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import apiClient from '@/services/api'
 import { mensagemDeErro } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'

@@ -1,10 +1,6 @@
 <template>
+  <PageLayout title="Histórico de Auditoria" subtitle="Registro de operações e alterações administrativas realizadas no sistema">
   <div class="historico-view">
-    <DashHeader
-      title="Histórico de Auditoria"
-      subtitle="Registro de operações e alterações administrativas realizadas no sistema"
-    />
-
     <div class="historico-container">
       <!-- BARRA DE FILTROS E BUSCA -->
       <div class="toolbar-filtros">
@@ -128,11 +124,12 @@
       </div>
     </div>
   </div>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import DashHeader from '@/components/DashHeader.vue'
+import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
 import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
