@@ -21,8 +21,8 @@
           <div class="avatar-circulo">
             {{ iniciaisNome }}
           </div>
-          <h3 class="nome-destaque">{{ perfil.nome_completo || perfil.usuario || 'Usuário' }}</h3>
-          <span class="usuario-tag font-mono">@{{ perfil.usuario }}</span>
+          <h3 class="nome-destaque">{{ perfil.nome_completo || perfil.username || 'Usuário' }}</h3>
+          <span class="usuario-tag font-mono">@{{ perfil.username }}</span>
 
           <div class="badges-papeis">
             <span v-if="perfil.is_admin" class="badge-papel papel-admin">
@@ -63,23 +63,13 @@
 
           <form @submit.prevent="salvarDadosPessoais">
             <div class="form-grid">
-              <!-- ID (APENAS LEITURA) -->
-              <div class="form-group">
-                <label>Identificador (ID)</label>
-                <input
-                  type="text"
-                  :value="`#${perfil.id || '-'}`"
-                  disabled
-                  class="input-desabilitado font-mono"
-                />
-              </div>
 
               <!-- USUÁRIO / USERNAME (APENAS LEITURA) -->
-              <div class="form-group">
+              <div class="form-group col-span-2">
                 <label>Nome de Usuário (Login)</label>
                 <input
                   type="text"
-                  :value="perfil.usuario || '-'"
+                  :value="perfil.username || '-'"
                   disabled
                   class="input-desabilitado font-mono"
                 />
