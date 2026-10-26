@@ -15,8 +15,9 @@
             />
           </div>
           <select v-model="filtroStatus" class="select-filtro">
-            <option value="">Todos os status</option>
-            <option value="AT">Ativo</option>
+            <option value="ANDAMENTO">Em andamento</option>
+            <option value="">Todos, inclusive encerrados</option>
+            <option value="AT">Em cultivo</option>
             <option value="ES">Em Estoque</option>
             <option value="BX">Estoque Baixo</option>
             <option value="DI">Disponível</option>
@@ -66,7 +67,7 @@
               <td class="font-destaque">{{ obterNomeCultura(lote.cultura_id) }}</td>
               <td>{{ obterIdentificacaoMesa(lote.mesa_id) }}</td>
               <td>{{ formatarData(lote.data_plantio) }}</td>
-              <td>{{ lote.quantidade }} {{ lote.unidade }}</td>
+              <td>{{ formatarQuantidade(lote.quantidade) }} {{ rotuloUnidade(lote.unidade) }}</td>
               <td>{{ lote.validade ? formatarData(lote.validade) : '-' }}</td>
               <td>
                 <span :class="['badge-status', `status-${lote.status}`]">
@@ -74,9 +75,17 @@
                 </span>
               </td>
               <td>{{ lote.fornecedor || '-' }}</td>
-              <td>
+              <td class="acoes">
                 <button
-                  v-if="podeExcluir"
+                  v-if="lote.status === 'AT'"
+                  class="btn-icon btn-alerta"
+                  title="Registrar perda"
+                  @click="abrirModalPerda(lote)"
+                >
+                  <span class="material-symbols-outlined">heart_broken</span>
+                </button>
+                <button
+                  v-if="podeExcluir && lote.status !== 'CO' && lote.status !== 'PE'"
                   class="btn-icon btn-danger"
                   title="Excluir Lote"
                   @click="excluirLote(lote.id)"
@@ -114,8 +123,8 @@
               <label for="cultura-select">Cultura *</label>
               <select id="cultura-select" v-model="novoLote.cultura_id" required>
                 <option value="" disabled>Selecione uma cultura</option>
-                <option v-for="c in culturas" :key="c.id" :value="c.id">
-                  {{ c.nome_cultura }}
+                <option v-for="c in culturas" :key="c.id" :value="c.id" :disabled="!culturaConfigurada(c)">
+                  {{ c.nome_cultura }}{{ culturaConfigurada(c) ? '' : ' (cadastro incompleto)' }}
                 </option>
               </select>
             </div>
@@ -124,8 +133,8 @@
               <label for="mesa-select">Mesa *</label>
               <select id="mesa-select" v-model="novoLote.mesa_id" required>
                 <option value="" disabled>Selecione uma mesa</option>
-                <option v-for="m in mesas" :key="m.id" :value="m.id">
-                  {{ m.identificacao }} ({{ m.estufa_nome || 'Sem estufa' }})
+                <option v-for="m in mesasDeEstufa" :key="m.id" :value="m.id" :disabled="m.status_mesa !== 'livre'">
+                  {{ m.identificacao }} · {{ m.estufa_nome }} · {{ rotuloMesa(m) }}
                 </option>
               </select>
             </div>
@@ -138,57 +147,65 @@
             </div>
 
             <div class="form-group">
-              <label for="validade-lote">Data de Validade</label>
-              <input id="validade-lote" v-model="novoLote.validade" type="date" />
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label for="quantidade-lote">Quantidade Inicial *</label>
+              <label for="quantidade-lote">Plantas na mesa *</label>
               <input
                 id="quantidade-lote"
                 v-model.number="novoLote.quantidade"
                 type="number"
-                step="0.01"
-                min="0.01"
+                step="1"
+                min="1"
+                :max="capacidadeMesaSelecionada || undefined"
                 required
               />
+              <small v-if="capacidadeMesaSelecionada" class="dica-campo">
+                A mesa comporta até {{ capacidadeMesaSelecionada }}.
+              </small>
             </div>
 
-            <div class="form-group">
-              <label for="unidade-lote">Unidade *</label>
-              <select id="unidade-lote" v-model="novoLote.unidade" required>
-                <option value="UN">UN (Unidade)</option>
-                <option value="KG">KG (Quilograma)</option>
-                <option value="G">G (Grama)</option>
-                <option value="CX">CX (Caixa)</option>
-                <option value="BD">BD (Bandeja)</option>
-              </select>
-            </div>
           </div>
 
           <div class="form-row">
             <div class="form-group">
-              <label for="status-lote">Status Inicial *</label>
-              <select id="status-lote" v-model="novoLote.status" required>
-                <option value="AT">Ativo</option>
-                <option value="DI">Disponível</option>
-                <option value="ES">Em Estoque</option>
-                <option value="BX">Estoque Baixo</option>
+              <label for="origem-lote">Origem das mudas</label>
+              <select id="origem-lote" v-model="novoLote.lote_origem">
+                <option :value="null">Compradas ou de fora do sistema</option>
+                <option v-for="l in mudasDisponiveis" :key="l.id" :value="l.id">
+                  Estoque #{{ l.id }} · {{ obterIdentificacaoMesa(l.mesa_id) }} ·
+                  {{ formatarQuantidade(l.quantidade) }} {{ rotuloUnidade(l.unidade) }}
+                </option>
               </select>
+              <small v-if="novoLote.cultura_id && mudasDisponiveis.length === 0" class="dica-campo">
+                Não há mudas desta cultura em estoque.
+              </small>
             </div>
 
-            <div class="form-group">
+            <div v-if="loteOrigem" class="form-group">
+              <label for="origem-quantidade">Retiradas do estoque ({{ rotuloUnidade(loteOrigem.unidade) }}) *</label>
+              <input
+                id="origem-quantidade"
+                v-model.number="novoLote.quantidade_origem"
+                type="number"
+                step="1"
+                min="1"
+                :max="loteOrigem.quantidade"
+                required
+              />
+              <small class="dica-campo">Sai do estoque de mudas ao cadastrar.</small>
+            </div>
+            <div v-else class="form-group">
               <label for="fornecedor-lote">Fornecedor</label>
               <input
                 id="fornecedor-lote"
                 v-model="novoLote.fornecedor"
                 type="text"
-                placeholder="Ex.: Sementes do Vale"
+                placeholder="Ex.: Hidro Mudas"
               />
             </div>
           </div>
+
+          <p class="aviso-form">
+            O lote entra como <strong>Em cultivo</strong> e ocupa a mesa até ser colhido ou ter a perda registrada.
+          </p>
 
           <div class="modal-actions">
             <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModal">
@@ -202,16 +219,66 @@
         </form>
       </div>
     </div>
+
+    <!-- MODAL DE REGISTRO DE PERDA -->
+    <div v-if="lotePerda" class="modal-overlay" @click.self="fecharModalPerda">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>Registrar perda · Lote #{{ lotePerda.id }}</h3>
+          <button class="btn-close" @click="fecharModalPerda">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <form @submit.prevent="salvarPerda">
+          <p class="aviso-form">
+            {{ obterNomeCultura(lotePerda.cultura_id) }} na mesa {{ obterIdentificacaoMesa(lotePerda.mesa_id) }}:
+            saldo de {{ formatarQuantidade(lotePerda.quantidade) }} {{ rotuloUnidade(lotePerda.unidade) }}. Perder tudo encerra o lote e libera a mesa.
+          </p>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="perda-quantidade">Quantidade perdida *</label>
+              <input
+                id="perda-quantidade"
+                v-model.number="formPerda.quantidade"
+                type="number"
+                step="1"
+                min="1"
+                :max="lotePerda.quantidade"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="perda-motivo">Motivo *</label>
+              <input
+                id="perda-motivo"
+                v-model="formPerda.motivo"
+                type="text"
+                required
+                placeholder="Ex.: pulgão, podridão, queima por calor"
+              />
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModalPerda">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-salvar btn-perigo" :disabled="salvando">
+              {{ salvando ? 'Registrando...' : 'Registrar perda' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
+import { extrairLista, formatarQuantidade, mensagemDeErro } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import verificarPermissao from '@/assets/JS/verificarPermissao'
@@ -229,7 +296,8 @@ const erroCarregamento = ref('')
 const exibirModal = ref(false)
 
 const termoBusca = ref('')
-const filtroStatus = ref('')
+// Por padrão esconde lotes encerrados (colhidos/perdidos), que são só histórico
+const filtroStatus = ref('ANDAMENTO')
 
 const permissoesUsuario = ref({ isAdmin: false, isGerente: false })
 
@@ -241,14 +309,47 @@ const formularioPadrao = () => ({
   cultura_id: '',
   mesa_id: '',
   data_plantio: new Date().toISOString().split('T')[0],
-  validade: null,
   quantidade: 1,
-  unidade: 'UN',
-  status: 'AT',
-  fornecedor: ''
+  fornecedor: '',
+  lote_origem: null,
+  quantidade_origem: 1
 })
 
 const novoLote = ref(formularioPadrao())
+watch(() => novoLote.value.cultura_id, () => { novoLote.value.lote_origem = null })
+const lotePerda = ref(null)
+const formPerda = ref({ quantidade: 0, motivo: '' })
+
+// Mesa NF-AUTO (sem estufa) só guarda itens de nota fiscal, não recebe plantio
+const mesasDeEstufa = computed(() => mesas.value.filter((m) => m.estufa))
+
+const capacidadeMesaSelecionada = computed(() => {
+  const mesa = mesas.value.find((m) => m.id === novoLote.value.mesa_id)
+  return mesa ? Number(mesa.capacidade_maxima) : 0
+})
+
+// Mesmo critério do back-end: culturas criadas pela nota fiscal chegam com ciclo e faixa zerados
+// Mudas guardadas da mesma cultura (berçário ou compradas pela nota fiscal)
+const mudasDisponiveis = computed(() => lotes.value.filter((l) =>
+  ['ES', 'BX', 'DI'].includes(l.status) && l.cultura_id === novoLote.value.cultura_id && l.quantidade > 0
+))
+
+const loteOrigem = computed(() => lotes.value.find((l) => l.id === novoLote.value.lote_origem) || null)
+
+function rotuloUnidade(unidade) {
+  const mapa = { UN: 'plantas', BD: 'bandejas', CX: 'caixas' }
+  return mapa[unidade] || unidade || ''
+}
+
+function culturaConfigurada(cultura) {
+  return cultura.tempo_medio_colheita > 0 && Number(cultura.temperatura_minima) < Number(cultura.temperatura_maxima)
+}
+
+function rotuloMesa(mesa) {
+  if (mesa.status_mesa === 'ocupada') return `ocupada (lote #${mesa.lote_em_cultivo})`
+  if (mesa.status_mesa === 'manutencao') return 'em manutenção'
+  return `livre, até ${Number(mesa.capacidade_maxima)}`
+}
 
 async function carregarPermissoes() {
   try {
@@ -296,7 +397,9 @@ const lotesFiltrados = computed(() => {
       mesaId.includes(busca) ||
       fornecedorNome.includes(busca)
 
-    const atendeStatus = !filtroStatus.value || lote.status === filtroStatus.value
+    const atendeStatus = filtroStatus.value === 'ANDAMENTO'
+      ? lote.status !== 'CO' && lote.status !== 'PE'
+      : !filtroStatus.value || lote.status === filtroStatus.value
 
     return atendeBusca && atendeStatus
   })
@@ -314,7 +417,7 @@ function obterIdentificacaoMesa(mesaId) {
 
 function rotuloStatus(status) {
   const mapa = {
-    AT: 'Ativo',
+    AT: 'Em cultivo',
     ES: 'Em Estoque',
     BX: 'Estoque Baixo',
     DI: 'Disponível',
@@ -347,11 +450,13 @@ async function salvarLote() {
       cultura_id: novoLote.value.cultura_id,
       mesa_id: novoLote.value.mesa_id,
       data_plantio: novoLote.value.data_plantio,
-      validade: novoLote.value.validade || null,
       quantidade: novoLote.value.quantidade,
-      unidade: novoLote.value.unidade,
-      status: novoLote.value.status,
-      fornecedor: novoLote.value.fornecedor?.trim() || null
+      unidade: 'UN',
+      fornecedor: loteOrigem.value ? null : novoLote.value.fornecedor?.trim() || null
+    }
+    if (loteOrigem.value) {
+      payload.lote_origem = loteOrigem.value.id
+      payload.quantidade_origem = novoLote.value.quantidade_origem
     }
 
     await apiClient.post('/lotes/', payload)
@@ -360,6 +465,38 @@ async function salvarLote() {
     await carregarDados()
   } catch (err) {
     toastStore.error(mensagemDeErro(err, 'Falha ao cadastrar o lote.'))
+  } finally {
+    salvando.value = false
+  }
+}
+
+function abrirModalPerda(lote) {
+  lotePerda.value = lote
+  formPerda.value = { quantidade: lote.quantidade, motivo: '' }
+}
+
+function fecharModalPerda() {
+  if (salvando.value) return
+  lotePerda.value = null
+}
+
+async function salvarPerda() {
+  salvando.value = true
+  try {
+    const lote = lotePerda.value
+    const res = await apiClient.post(`/lotes/${lote.id}/registrar_perda/`, {
+      quantidade: formPerda.value.quantidade,
+      motivo: formPerda.value.motivo.trim()
+    })
+    toastStore.success(
+      res.data.status === 'PE'
+        ? `Lote #${lote.id} encerrado como perdido. A mesa foi liberada.`
+        : `Perda registrada. Saldo atual: ${formatarQuantidade(res.data.quantidade)} ${rotuloUnidade(res.data.unidade)}.`
+    )
+    lotePerda.value = null
+    await carregarDados()
+  } catch (err) {
+    toastStore.error(mensagemDeErro(err, 'Não foi possível registrar a perda.'))
   } finally {
     salvando.value = false
   }
@@ -549,6 +686,36 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   border-radius: 4px;
+}
+
+.acoes {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-icon.btn-alerta {
+  color: #b45309;
+}
+
+.btn-icon.btn-alerta:hover {
+  background-color: rgba(180, 83, 9, 0.08);
+}
+
+.aviso-form {
+  margin: 0.5rem 0 1rem;
+  font-size: 0.9rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.dica-campo {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.btn-salvar.btn-perigo {
+  background-color: #b91c1c;
 }
 
 .btn-icon.btn-danger {

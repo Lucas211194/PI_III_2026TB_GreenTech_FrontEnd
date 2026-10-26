@@ -6,7 +6,7 @@
           <h2>Registro de Colheitas</h2>
           <p class="subtitle">Histórico de colheitas e controle de perdas da produção</p>
         </div>
-        <button class="btn-primary" @click="abrirModalNovaColheita">
+        <button class="btn-primary" @click="abrirModalNovaColheita()">
           <span class="material-symbols-outlined">add</span>
           Registrar Colheita
         </button>
@@ -47,9 +47,9 @@
                 <td class="font-mono">#{{ c.lote_id }}</td>
                 <td class="font-destaque">{{ obterNomeCulturaPorLote(c.lote_id) }}</td>
                 <td>{{ formatarData(c.data_colheita) }}</td>
-                <td>{{ parseNumero(c.quantidade_colhida).toFixed(2) }} {{ obterUnidadeLote(c.lote_id) }}</td>
+                <td>{{ formatarQuantidade(c.quantidade_colhida) }} {{ obterUnidadeLote(c.lote_id) }}</td>
                 <td :class="{ 'texto-perda': parseNumero(c.quantidade_perda) > 0 }">
-                  {{ parseNumero(c.quantidade_perda).toFixed(2) }} {{ obterUnidadeLote(c.lote_id) }}
+                  {{ formatarQuantidade(c.quantidade_perda) }} {{ obterUnidadeLote(c.lote_id) }}
                 </td>
                 <td>
                   <span :class="['badge-taxa', classeTaxa(calcularTaxaAproveitamento(c))]">
@@ -68,7 +68,7 @@
         <span class="material-symbols-outlined empty-icon">agriculture</span>
         <h3>Nenhuma colheita registrada</h3>
         <p>Quando os lotes ativos atingirem o ciclo de maturação, registre a colheita aqui.</p>
-        <button class="btn-primary" @click="abrirModalNovaColheita">Registrar Primeira Colheita</button>
+        <button class="btn-primary" @click="abrirModalNovaColheita()">Registrar Primeira Colheita</button>
       </div>
 
       <!-- MODAL FORMULÁRIO DE COLHEITA -->
@@ -85,9 +85,10 @@
             <div class="form-group">
               <label for="lote-colheita">Lote a ser Colhido *</label>
               <select id="lote-colheita" v-model="formulario.lote_id" required>
-                <option value="" disabled>Selecione um lote ativo</option>
+                <option value="" disabled>Selecione um lote em cultivo</option>
                 <option v-for="l in lotesDisponiveis" :key="l.id" :value="l.id">
-                  Lote #{{ l.id }} - {{ obterNomeCulturaPorLote(l.id) }} (Saldo: {{ l.quantidade }} {{ l.unidade }})
+                  {{ obterIdentificacaoMesa(l.mesa_id) }} · {{ obterNomeCulturaPorLote(l.id) }} ·
+                  {{ percentualCiclo(l) }}% do ciclo · {{ formatarQuantidade(l.quantidade) }} plantas
                 </option>
               </select>
             </div>
@@ -120,7 +121,11 @@
             <div class="aviso-irreversivel">
               <span class="material-symbols-outlined">info</span>
               <p>
-                O registro de colheita zera o saldo do lote, altera o status para 'Colhido' e gera movimentações automáticas de estoque.
+                A colheita encerra o lote e libera a mesa.
+                <template v-if="saldoRestante > 0 && formulario.quantidade_colhida > 0">
+                  As {{ formatarQuantidade(saldoRestante) }} {{ obterUnidadeLote(loteSelecionado.id) }} não informadas
+                  serão baixadas como perda.
+                </template>
               </p>
             </div>
 
@@ -138,12 +143,12 @@
 
       <!-- MODAL DE CONFIRMAÇÃO IRREVERSÍVEL (C08) -->
       <ModalConfirmacao
-        v-if="modalConfirmacaoAberto"
+        :ativo="modalConfirmacaoAberto"
         titulo="Confirmar Colheita Irreversível"
         :mensagem="mensagemConfirmacao"
         texto-confirmar="Sim, Confirmar Colheita"
         texto-cancelar="Voltar e Revisar"
-        :carregando="salvando"
+        :processando="salvando"
         @confirmar="executarRegistroColheita"
         @cancelar="modalConfirmacaoAberto = false"
       />
@@ -152,7 +157,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import ModalConfirmacao from '@/components/ModalConfirmacao.vue'
@@ -160,14 +166,17 @@ import colheitaService from '@/services/colheitaService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
 import funcionarioService from '@/services/funcionarioService'
-import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import estruturaService from '@/services/estruturaService'
+import { formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
+const route = useRoute()
 
 const colheitas = ref([])
 const lotes = ref([])
 const culturas = ref([])
+const mesas = ref([])
 // A16: Guarda apenas { id, nome } em memória para proteção de dados pessoais
 const funcionariosMinimos = ref([])
 
@@ -183,8 +192,20 @@ const formulario = ref({
   quantidade_perda: 0
 })
 
+// Ao escolher o lote, parte do saldo inteiro colhido: o operador só ajusta o que foi descartado
+watch(() => formulario.value.lote_id, (loteId) => {
+  const lote = lotes.value.find((l) => l.id === loteId)
+  if (lote) {
+    formulario.value.quantidade_colhida = parseNumero(lote.quantidade)
+    formulario.value.quantidade_perda = 0
+  }
+})
+
 const lotesDisponiveis = computed(() => {
-  return lotes.value.filter((l) => l.status === 'AT' || l.status === 'DI' || l.status === 'ES')
+  // Só plantios em cultivo (mudas em estoque não são colhidas), os mais maduros primeiro
+  return lotes.value
+    .filter((l) => l.status === 'AT')
+    .sort((a, b) => percentualCiclo(b) - percentualCiclo(a))
 })
 
 const loteSelecionado = computed(() => {
@@ -192,9 +213,16 @@ const loteSelecionado = computed(() => {
   return lotes.value.find((l) => l.id === formulario.value.lote_id) || null
 })
 
+const saldoRestante = computed(() => {
+  if (!loteSelecionado.value) return 0
+  const resto = parseNumero(loteSelecionado.value.quantidade)
+    - (Number(formulario.value.quantidade_colhida) || 0) - (Number(formulario.value.quantidade_perda) || 0)
+  return Math.max(0, Math.round(resto * 100) / 100)
+})
+
 const mensagemConfirmacao = computed(() => {
   if (!loteSelecionado.value) return ''
-  return `Esta ação é irreversível. O lote #${loteSelecionado.value.id} terá seu saldo zerado e status alterado permanentemente para 'Colhido'. Confirma o registro de ${formulario.value.quantidade_colhida} colhidos e ${formulario.value.quantidade_perda || 0} de perda?`
+  return `Esta ação é irreversível. O lote #${loteSelecionado.value.id} terá seu saldo zerado e status alterado permanentemente para 'Colhido'. Confirma o registro de ${formulario.value.quantidade_colhida} colhidos e ${formulario.value.quantidade_perda || 0} de perda?${saldoRestante.value > 0 ? ` As ${saldoRestante.value} restantes serão registradas como perda.` : ''}`
 })
 
 async function carregarDados() {
@@ -202,13 +230,15 @@ async function carregarDados() {
   erroCarregamento.value = ''
 
   try {
-    const [resColheitas, resLotes, resCulturas, resFuncs] = await Promise.all([
+    const [resColheitas, resLotes, resCulturas, resFuncs, resMesas] = await Promise.all([
       colheitaService.listar(),
       loteService.listar(),
       culturaService.listar(),
-      funcionarioService.listar()
+      funcionarioService.listar(),
+      estruturaService.listarMesas()
     ])
 
+    mesas.value = resMesas
     colheitas.value = resColheitas
     lotes.value = resLotes
     culturas.value = resCulturas
@@ -235,7 +265,20 @@ function obterNomeCulturaPorLote(loteId) {
 
 function obterUnidadeLote(loteId) {
   const lote = lotes.value.find((l) => l.id === loteId)
-  return lote ? lote.unidade : 'UN'
+  return !lote || lote.unidade === 'UN' ? 'plantas' : lote.unidade
+}
+
+function obterIdentificacaoMesa(mesaId) {
+  const mesa = mesas.value.find((m) => m.id === mesaId)
+  return mesa ? mesa.identificacao : `Mesa #${mesaId}`
+}
+
+// Quanto do ciclo da cultura já passou desde o plantio
+function percentualCiclo(lote) {
+  const cultura = culturas.value.find((c) => c.id === lote.cultura_id)
+  if (!cultura || !(cultura.tempo_medio_colheita > 0)) return 0
+  const dias = (new Date() - new Date(`${lote.data_plantio}T00:00:00`)) / 86400000
+  return Math.max(0, Math.round((dias / cultura.tempo_medio_colheita) * 100))
 }
 
 function obterNomeFuncionario(funcionarioId) {
@@ -264,9 +307,9 @@ function formatarData(dataStr) {
   return `${dia}/${mes}/${ano}`
 }
 
-function abrirModalNovaColheita() {
+function abrirModalNovaColheita(loteId = '') {
   formulario.value = {
-    lote_id: '',
+    lote_id: loteId,
     quantidade_colhida: 0,
     quantidade_perda: 0
   }
@@ -316,8 +359,13 @@ async function executarRegistroColheita() {
   }
 }
 
-onMounted(() => {
-  carregarDados()
+onMounted(async () => {
+  await carregarDados()
+  // Vindo do dashboard ("Colher"), abre o formulário com o lote já escolhido
+  const loteId = Number(route.query.lote)
+  if (loteId && lotesDisponiveis.value.some((l) => l.id === loteId)) {
+    abrirModalNovaColheita(loteId)
+  }
 })
 </script>
 

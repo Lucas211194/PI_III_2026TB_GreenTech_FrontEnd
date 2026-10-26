@@ -197,7 +197,14 @@
 
             <div class="form-group">
               <label for="mesa-status">Status da Mesa</label>
-              <input id="mesa-status" v-model="formMesa.status_mesa" type="text" placeholder="livre, ocupada..." />
+              <input v-if="formMesa.lote_em_cultivo" id="mesa-status" type="text" value="Ocupada" disabled />
+              <select v-else id="mesa-status" v-model="formMesa.status_mesa">
+                <option value="livre">Livre</option>
+                <option value="manutencao">Em manutenção</option>
+              </select>
+              <small v-if="formMesa.lote_em_cultivo" class="hint-capacidade">
+                Ocupada pelo lote #{{ formMesa.lote_em_cultivo }}. Fica livre ao colher ou registrar a perda.
+              </small>
             </div>
           </div>
 
@@ -309,7 +316,8 @@ function editarEstufa(est) {
 
 function editarMesa(m) {
   modoEdicaoMesa.value = true
-  formMesa.value = { ...m }
+  // "ocupada" é calculado pelo back-end; no formulário a mesa ocupada segue como livre
+  formMesa.value = { ...m, status_mesa: m.status_mesa === 'manutencao' ? 'manutencao' : 'livre' }
   modalMesaAberto.value = true
 }
 

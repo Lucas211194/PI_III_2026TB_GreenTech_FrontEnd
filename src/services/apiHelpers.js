@@ -79,6 +79,13 @@ export function mensagemDeErro(err, fallback = 'Ocorreu um erro ao processar a r
  * @param {number} valorPadrao Valor retornado em caso de NaN ou nulo
  * @returns {number} Número convertido
  */
+/**
+ * Quantidade no formato brasileiro sem casas decimais sobrando ("130" e não "130.00").
+ */
+export function formatarQuantidade(valor) {
+  return parseNumero(valor).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
 export function parseNumero(valor, valorPadrao = 0) {
   if (valor === null || valor === undefined || valor === '') {
     return valorPadrao

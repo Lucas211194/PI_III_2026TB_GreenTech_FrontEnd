@@ -10,7 +10,7 @@
           @click="abaAtiva = 'culturas'"
         >
           <span class="material-symbols-outlined">psychiatry</span>
-          Lotes em Cultivo
+          Lotes e Mudas
         </button>
         <button
           type="button"
@@ -91,10 +91,10 @@
                   <td class="font-mono">#{{ l.id }}</td>
                   <td class="font-destaque">{{ obterNomeCultura(l.cultura_id) }}</td>
                   <td>{{ formatarData(l.data_plantio) }}</td>
-                  <td>{{ parseNumero(l.quantidade).toFixed(2) }} {{ l.unidade }}</td>
+                  <td>{{ formatarQuantidade(l.quantidade) }} {{ l.unidade }}</td>
                   <td>
                     <span :class="['badge-status', `status-${l.status}`]">
-                      {{ l.status }}
+                      {{ l.status_nome || l.status }}
                     </span>
                   </td>
                   <td>{{ l.validade ? formatarData(l.validade) : '-' }}</td>
@@ -178,8 +178,8 @@
                     </span>
                   </td>
                   <td>{{ rotuloTipoInsumo(ins.tipo) }}</td>
-                  <td>{{ parseNumero(ins.quantidade_atual).toFixed(2) }} {{ ins.unidade }}</td>
-                  <td>{{ parseNumero(ins.estoque_minimo).toFixed(2) }} {{ ins.unidade }}</td>
+                  <td>{{ formatarQuantidade(ins.quantidade_atual) }} {{ ins.unidade }}</td>
+                  <td>{{ formatarQuantidade(ins.estoque_minimo) }} {{ ins.unidade }}</td>
                   <td>{{ ins.validade ? formatarData(ins.validade) : '-' }}</td>
                   <td>{{ ins.fornecedor || '-' }}</td>
                   <td v-if="podeGerenciarInsumos">
@@ -238,7 +238,7 @@
                       {{ m.tipo_movimentacao }}
                     </span>
                   </td>
-                  <td>{{ parseNumero(m.quantidade).toFixed(2) }} {{ m.unidade }}</td>
+                  <td>{{ formatarQuantidade(m.quantidade) }} {{ m.unidade }}</td>
                   <td>{{ m.motivo || '-' }}</td>
                   <td class="col-obs">{{ m.observacoes || '-' }}</td>
                 </tr>
@@ -283,7 +283,7 @@
                       {{ mi.tipo_movimentacao }}
                     </span>
                   </td>
-                  <td>{{ parseNumero(mi.quantidade).toFixed(2) }}</td>
+                  <td>{{ formatarQuantidade(mi.quantidade) }}</td>
                   <td>{{ mi.motivo || '-' }}</td>
                   <td class="col-obs">{{ mi.observacoes || '-' }}</td>
                 </tr>
@@ -400,7 +400,7 @@
             <label for="mov-lote-id">Lote *</label>
             <select id="mov-lote-id" v-model="formMovLote.lote_id" required>
               <option value="" disabled>Selecione o lote</option>
-              <option v-for="l in lotes" :key="l.id" :value="l.id">
+              <option v-for="l in lotesMovimentaveis" :key="l.id" :value="l.id">
                 Lote #{{ l.id }} - {{ obterNomeCultura(l.cultura_id) }} (Saldo: {{ l.quantidade }} {{ l.unidade }})
               </option>
             </select>
@@ -538,7 +538,7 @@ import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import estoqueService from '@/services/estoqueService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
-import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -626,13 +626,16 @@ async function carregarTudo() {
 }
 
 // Filtros computados
+// Lotes colhidos ou perdidos estão encerrados: não têm saldo nem recebem movimentação
+const lotesMovimentaveis = computed(() => lotes.value.filter((l) => l.status !== 'CO' && l.status !== 'PE'))
+
 const lotesFiltrados = computed(() => {
   const busca = filtroBuscaLote.value.trim().toLowerCase()
-  if (!busca) return lotes.value
+  if (!busca) return lotesMovimentaveis.value
 
-  return lotes.value.filter((l) => {
+  return lotesMovimentaveis.value.filter((l) => {
     const cNome = obterNomeCultura(l.cultura_id).toLowerCase()
-    return String(l.id).includes(busca) || cNome.includes(busca) || String(l.status).toLowerCase().includes(busca)
+    return String(l.id).includes(busca) || cNome.includes(busca) || String(l.status_nome || l.status).toLowerCase().includes(busca)
   })
 })
 
@@ -687,7 +690,9 @@ function rotuloTipoInsumo(tipo) {
 
 function formatarData(dataStr) {
   if (!dataStr) return '-'
-  const d = new Date(dataStr)
+  // "AAAA-MM-DD" sem hora seria lido como meia-noite UTC e mostrado um dia antes no Brasil
+  const somenteData = /^\d{4}-\d{2}-\d{2}$/.test(dataStr)
+  const d = new Date(somenteData ? `${dataStr}T00:00:00` : dataStr)
   if (Number.isNaN(d.getTime())) return dataStr
   return d.toLocaleDateString('pt-BR')
 }

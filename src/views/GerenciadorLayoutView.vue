@@ -217,7 +217,7 @@ function obterNomeCultura(culturaId) {
 
 function obterLoteAtivoDaMesa(mesaId) {
   return lotes.value.find(
-    (l) => l.mesa_id === mesaId && (l.status === 'AT' || l.status === 'DI' || l.status === 'ES'),
+    (l) => l.mesa_id === mesaId && l.status === 'AT',
   ) || null
 }
 

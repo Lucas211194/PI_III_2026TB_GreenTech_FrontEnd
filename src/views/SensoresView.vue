@@ -1,5 +1,5 @@
 <template>
-  <PageLayout title="Monitoramento de Sensores" subtitle="Leituras climáticas em tempo real registradas nas mesas de cultivo">
+  <PageLayout title="Monitoramento de Sensores" subtitle="Leituras climáticas registradas nas mesas de cultivo">
   <div class="sensores-view">
     <div class="sensores-container">
       <!-- FILTROS E AÇÕES -->
@@ -48,7 +48,7 @@
               <strong class="kpi-valor">
                 {{ mediasCalculadas.temperatura !== null ? `${mediasCalculadas.temperatura}°C` : '--' }}
               </strong>
-              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+              <span class="kpi-sub">Última leitura de {{ ultimasPorMesa.length }} mesa(s)</span>
             </div>
           </div>
 
@@ -61,7 +61,7 @@
               <strong class="kpi-valor">
                 {{ mediasCalculadas.umidade !== null ? `${mediasCalculadas.umidade}%` : '--' }}
               </strong>
-              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+              <span class="kpi-sub">Última leitura de {{ ultimasPorMesa.length }} mesa(s)</span>
             </div>
           </div>
 
@@ -74,7 +74,7 @@
               <strong class="kpi-valor">
                 {{ mediasCalculadas.luminosidade !== null ? `${mediasCalculadas.luminosidade} Lux` : '--' }}
               </strong>
-              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+              <span class="kpi-sub">Última leitura de {{ ultimasPorMesa.length }} mesa(s)</span>
             </div>
           </div>
 
@@ -87,7 +87,7 @@
               <strong class="kpi-valor">
                 {{ mediasCalculadas.ventilacao !== null ? `${mediasCalculadas.ventilacao}%` : '--' }}
               </strong>
-              <span class="kpi-sub">{{ leiturasFiltradas.length }} leitura(s) considerada(s)</span>
+              <span class="kpi-sub">Última leitura de {{ ultimasPorMesa.length }} mesa(s)</span>
             </div>
           </div>
         </div>
@@ -110,6 +110,7 @@
                   <th>Umidade</th>
                   <th>Luminosidade</th>
                   <th>Ventilação</th>
+                  <th>Solo</th>
                   <th>Status Climático</th>
                   <th>Obs.</th>
                 </tr>
@@ -122,12 +123,16 @@
                   <td>{{ parseNumero(item.temperatura).toFixed(1) }} °C</td>
                   <td>{{ parseNumero(item.umidade).toFixed(1) }} %</td>
                   <td>{{ parseNumero(item.luminosidade).toFixed(0) }} Lux</td>
-                  <td>{{ parseNumero(item.ventilacao).toFixed(1) }} %</td>
+                  <td>{{ parseNumero(item.ventilacao).toFixed(0) }} %</td>
+                  <td class="sem-quebra">{{ item.umidade_solo !== null ? `${parseNumero(item.umidade_solo).toFixed(1)} %` : '-' }}</td>
                   <td>
-                    <span :class="['badge-status', `status-${calcularStatus(item).tipo}`]">
-                      {{ calcularStatus(item).rotulo }}
+                    <span
+                      :class="['badge-status', `status-${classeStatus(item)}`]"
+                      :title="parametrosForaDaFaixa(item)"
+                    >
+                      {{ rotuloStatus(item) }}
                     </span>
-                    <span v-if="calcularStatus(item).isPadrao" class="tag-padrao" title="Sem cultura vinculada">
+                    <span v-if="item.avaliacao?.limite_padrao" class="tag-padrao" title="Mesa sem cultura em cultivo">
                       limite padrão
                     </span>
                   </td>
@@ -135,7 +140,7 @@
                 </tr>
 
                 <tr v-if="leiturasFiltradas.length === 0">
-                  <td colspan="9" class="empty-row">
+                  <td colspan="10" class="empty-row">
                     Nenhum registro climático encontrado para os filtros selecionados.
                   </td>
                 </tr>
@@ -162,8 +167,6 @@ const toastStore = useToastStore()
 const leiturasClima = ref([])
 const mesas = ref([])
 const estufas = ref([])
-const culturas = ref([])
-const lotes = ref([])
 
 const carregando = ref(false)
 const erroCarregamento = ref('')
@@ -173,12 +176,10 @@ async function carregarDados() {
   carregando.value = true
   erroCarregamento.value = ''
   try {
-    const [resClima, resMesas, resEstufas, resCulturas, resLotes] = await Promise.all([
+    const [resClima, resMesas, resEstufas] = await Promise.all([
       apiClient.get('/clima/'),
       apiClient.get('/mesa/'),
       apiClient.get('/estufa/'),
-      apiClient.get('/cultura/'),
-      apiClient.get('/lotes/'),
     ])
 
     const listaClima = extrairLista(resClima.data)
@@ -188,8 +189,6 @@ async function carregarDados() {
     leiturasClima.value = listaClima
     mesas.value = extrairLista(resMesas.data)
     estufas.value = extrairLista(resEstufas.data)
-    culturas.value = extrairLista(resCulturas.data)
-    lotes.value = extrairLista(resLotes.data)
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar os dados climáticos dos sensores.')
     toastStore.error(erroCarregamento.value)
@@ -224,8 +223,18 @@ const leiturasFiltradas = computed(() => {
   })
 })
 
+// Retrato atual: a leitura mais recente de cada mesa (a lista já vem da mais nova para a mais antiga)
+const ultimasPorMesa = computed(() => {
+  const vistas = new Set()
+  return leiturasFiltradas.value.filter((leitura) => {
+    if (vistas.has(leitura.mesa_id)) return false
+    vistas.add(leitura.mesa_id)
+    return true
+  })
+})
+
 const mediasCalculadas = computed(() => {
-  const lista = leiturasFiltradas.value
+  const lista = ultimasPorMesa.value
   if (lista.length === 0) {
     return { temperatura: null, umidade: null, luminosidade: null, ventilacao: null }
   }
@@ -250,37 +259,22 @@ const mediasCalculadas = computed(() => {
   }
 })
 
-function calcularStatus(leitura) {
-  const temp = parseNumero(leitura.temperatura)
-  const umid = parseNumero(leitura.umidade)
+// Avaliação feita pelo back-end com as mesmas regras que geram os alertas
+const ROTULOS_STATUS = { normal: 'Normal', atencao: 'Atenção', critico: 'Crítico' }
+const NOMES_PARAMETRO = { temperatura: 'temperatura', umidade: 'umidade do ar', umidade_solo: 'umidade do solo' }
 
-  // Busca lote ativo na mesa para encontrar os limites da cultura
-  const loteAtivo = lotes.value.find(
-    (l) => l.mesa_id === leitura.mesa_id && (l.status === 'AT' || l.status === 'DI'),
-  )
+function rotuloStatus(leitura) {
+  return ROTULOS_STATUS[leitura.avaliacao?.status] || '-'
+}
 
-  let minTemp = 16
-  let maxTemp = 30
-  let umidIdeal = 50
-  let isPadrao = true
+function classeStatus(leitura) {
+  const status = leitura.avaliacao?.status
+  return status === 'normal' ? 'normal' : status === 'critico' ? 'critico' : 'alerta'
+}
 
-  if (loteAtivo) {
-    const cultura = culturas.value.find((c) => c.id === loteAtivo.cultura_id)
-    if (cultura) {
-      minTemp = parseNumero(cultura.temperatura_minima, 16)
-      maxTemp = parseNumero(cultura.temperatura_maxima, 30)
-      umidIdeal = parseNumero(cultura.umidade_ideal, 50)
-      isPadrao = false
-    }
-  }
-
-  const tempFora = temp < minTemp || temp > maxTemp
-  const umidFora = Math.abs(umid - umidIdeal) > 15
-
-  if (tempFora || umidFora) {
-    return { rotulo: 'Atenção', tipo: 'alerta', isPadrao }
-  }
-  return { rotulo: 'Normal', tipo: 'normal', isPadrao }
+function parametrosForaDaFaixa(leitura) {
+  const parametros = leitura.avaliacao?.parametros || []
+  return parametros.length ? `Fora da faixa: ${parametros.map((p) => NOMES_PARAMETRO[p] || p).join(', ')}` : ''
 }
 
 function formatarDataHora(dataHoraStr) {
@@ -516,8 +510,17 @@ onMounted(() => {
 }
 
 .badge-status.status-alerta {
+  background-color: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.badge-status.status-critico {
   background-color: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
+  color: #dc2626;
+}
+
+.sem-quebra {
+  white-space: nowrap;
 }
 
 .tag-padrao {

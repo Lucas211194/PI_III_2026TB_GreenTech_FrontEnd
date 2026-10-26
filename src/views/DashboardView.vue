@@ -26,8 +26,8 @@
         <div class="sensor-card kpi-card">
           <div class="kpi-icon" style="background: rgba(230, 81, 0, 0.1); color: #e65100;"><span class="material-symbols-outlined">layers</span></div>
           <div class="kpi-data">
-            <h3>{{ mesas.length }}</h3>
-            <p>Mesas Alocadas</p>
+            <h3>{{ mesasOcupadas }} / {{ mesasDeEstufa.length }}</h3>
+            <p>Mesas Ocupadas</p>
           </div>
         </div>
 
@@ -39,13 +39,15 @@
           </div>
         </div>
 
-        <div class="sensor-card kpi-card">
-          <div class="kpi-icon" style="background: rgba(103, 58, 183, 0.1); color: #673ab7;"><span class="material-symbols-outlined">speed</span></div>
-          <div class="kpi-data">
-            <h3>{{ capacidadeTotal }}</h3>
-            <p>Capacidade de Plantio</p>
+        <router-link to="/alertas" class="sensor-card kpi-card kpi-link">
+          <div class="kpi-icon" :style="alertasCriticos > 0 ? 'background: rgba(211, 47, 47, 0.1); color: #c62828;' : 'background: rgba(76, 175, 80, 0.1); color: var(--primary-green);'">
+            <span class="material-symbols-outlined">warning</span>
           </div>
-        </div>
+          <div class="kpi-data">
+            <h3>{{ alertasAtivos.length }}</h3>
+            <p>Alertas Ativos<span v-if="alertasCriticos > 0" class="kpi-destaque"> · {{ alertasCriticos }} crítico(s)</span></p>
+          </div>
+        </router-link>
       </div>
 
       <div class="sensor-card full-width-card" style="margin-bottom: 25px;">
@@ -61,7 +63,7 @@
           <div v-for="estufa in ocupacaoPorEstufa" :key="estufa.id" class="estufa-distribution-item">
             <div class="estufa-header">
               <strong>Estufa: {{ estufa.nome_setor || `#${estufa.id}` }}</strong>
-              <span class="estufa-total">{{ estufa.total > 0 ? estufa.total + ' Unidades' : 'Vazia' }}</span>
+              <span class="estufa-total">{{ estufa.total > 0 ? formatarQuantidade(estufa.total) + ' plantas' : 'Vazia' }}</span>
             </div>
 
             <div class="stacked-bar-container" v-if="estufa.total > 0">
@@ -112,9 +114,11 @@
               </div>
 
               <div class="item-footer">
-                <span>Mesa {{ l.mesa_id }} | Vol: {{ parseFloat(l.quantidade) }}</span>
-                <span v-if="l.diasRestantes > 0" style="font-weight: 600;">Tempo Estimado: {{ l.diasRestantes }} dias</span>
-                <span v-else style="color: #d32f2f; font-weight: 700;">Colheita Pendente</span>
+                <span>Mesa {{ identificacaoMesa(l.mesa_id) }} · {{ formatarQuantidade(l.quantidade) }} plantas</span>
+                <span v-if="l.diasRestantes > 0" style="font-weight: 600;">Faltam {{ l.diasRestantes }} dias</span>
+                <router-link v-else :to="{ path: '/colheitas', query: { lote: l.id } }" class="btn-colher">
+                  Colher agora &rarr;
+                </router-link>
               </div>
             </div>
           </div>
@@ -139,12 +143,12 @@
               </div>
 
               <div class="activity-details">
-                <div class="activity-name">Lote #{{ m.lote_id }} — {{ m.motivo }}</div>
+                <div class="activity-name">{{ descricaoLote(m.lote_id) }} — {{ m.motivo }}</div>
                 <div class="activity-date">{{ new Date(m.data_movimentacao).toLocaleString('pt-BR') }}</div>
               </div>
 
               <div class="activity-qty" :style="{ color: m.tipo_movimentacao.toLowerCase() === 'entrada' ? '#2e7d32' : '#c62828' }">
-                {{ m.tipo_movimentacao.toLowerCase() === 'entrada' ? '+' : '-' }}{{ parseFloat(m.quantidade) }}
+                {{ m.tipo_movimentacao.toLowerCase() === 'entrada' ? '+' : '-' }}{{ formatarQuantidade(m.quantidade) }}
               </div>
             </div>
           </div>
@@ -161,6 +165,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import apiClient from '@/services/api';
+import { extrairLista, formatarQuantidade } from '@/services/apiHelpers';
 import Sidebar from '@/components/Sidebar.vue';
 import Footer from '@/components/Footer.vue';
 import DashHeader from '@/components/DashHeader.vue';
@@ -171,11 +177,29 @@ const culturas = ref([]);
 const estufas = ref([]);
 const mesas = ref([]);
 const estoque = ref([]);
+const alertasAtivos = ref([]);
 
 const coresCulturas = ['#4caf50', '#0288d1', '#ab47bc', '#ff9800', '#009688', '#e91e63', '#795548', '#607d8b'];
 
-const lotesAtivos = computed(() => lotes.value.filter(l => l.status !== 'CO' && l.status !== 'PE').length);
-const capacidadeTotal = computed(() => mesas.value.reduce((acc, m) => acc + parseFloat(m.capacidade_maxima || 0), 0));
+// Em cultivo = plantado na mesa; mudas em estoque (ES/BX/DI) não entram na ocupação nem na previsão de colheita
+const emCultivo = (lote) => lote.status === 'AT';
+const lotesAtivos = computed(() => lotes.value.filter(emCultivo).length);
+// NF-AUTO (sem estufa) não é mesa de cultivo
+const mesasDeEstufa = computed(() => mesas.value.filter(m => m.estufa));
+const mesasOcupadas = computed(() => mesasDeEstufa.value.filter(m => m.status_mesa === 'ocupada').length);
+const alertasCriticos = computed(() => alertasAtivos.value.filter(a => a.gravidade === 'critico').length);
+
+function identificacaoMesa(mesaId) {
+  const mesa = mesas.value.find(m => m.id === mesaId);
+  return mesa ? mesa.identificacao : `#${mesaId}`;
+}
+
+function descricaoLote(loteId) {
+  const lote = lotes.value.find(l => l.id === loteId);
+  if (!lote) return `Lote #${loteId}`;
+  const cultura = culturas.value.find(c => c.id === lote.cultura_id);
+  return `${cultura ? cultura.nome_cultura : `Lote #${loteId}`} (${identificacaoMesa(lote.mesa_id)})`;
+}
 const movimentacoesRecentes = computed(() => estoque.value.slice(0, 4));
 
 const ocupacaoPorEstufa = computed(() => {
@@ -187,7 +211,7 @@ const ocupacaoPorEstufa = computed(() => {
 
     const lotesEstufa = lotes.value.filter(l =>
       mesasEstufa.some(m => String(m.id) === String(l.mesa || l.mesa_id)) &&
-      l.status !== 'CO' && l.status !== 'PE'
+      emCultivo(l)
     );
 
     const mapCulturas = {};
@@ -233,10 +257,10 @@ const ocupacaoPorEstufa = computed(() => {
 
 const lotesMaisProximosColheita = computed(() => {
   return lotes.value
-    .filter(l => l.status !== 'CO' && l.status !== 'PE')
+    .filter(emCultivo)
     .map(lote => {
       const cultura = culturas.value.find(c => c.id === lote.cultura_id);
-      if (!cultura) return null;
+      if (!cultura || !(cultura.tempo_medio_colheita > 0)) return null;
       const diasPassados = Math.max(0, Math.floor((new Date() - new Date(lote.data_plantio)) / (1000 * 60 * 60 * 24)));
       const porcentagem = Math.min(100, Math.max(0, Math.round((diasPassados / cultura.tempo_medio_colheita) * 100)));
       const diasRestantes = Math.max(0, cultura.tempo_medio_colheita - diasPassados);
@@ -248,21 +272,17 @@ const lotesMaisProximosColheita = computed(() => {
 });
 
 onMounted(async () => {
-  const h = { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` };
+  // apiClient renova o token sozinho; o fetch direto deixava o painel vazio quando o token expirava
+  const listar = (url, params) => apiClient.get(url, { params }).then(res => extrairLista(res.data)).catch(() => []);
   try {
-    const [resLotes, resCulturas, resEstufas, resMesas, resEstoque] = await Promise.all([
-      fetch('/api/lotes/', { headers: h }),
-      fetch('/api/cultura/', { headers: h }),
-      fetch('/api/estufa/', { headers: h }),
-      fetch('/api/mesa/', { headers: h }),
-      fetch('/api/estoque/', { headers: h })
+    [lotes.value, culturas.value, estufas.value, mesas.value, estoque.value, alertasAtivos.value] = await Promise.all([
+      listar('/lotes/'),
+      listar('/cultura/'),
+      listar('/estufa/'),
+      listar('/mesa/'),
+      listar('/estoque/'),
+      listar('/alertas/', { status: 'ativo' })
     ]);
-
-    if (resLotes.ok) lotes.value = await resLotes.json();
-    if (resCulturas.ok) culturas.value = await resCulturas.json();
-    if (resEstufas.ok) estufas.value = await resEstufas.json();
-    if (resMesas.ok) mesas.value = await resMesas.json();
-    if (resEstoque.ok) estoque.value = await resEstoque.json();
   } catch (e) {
     console.error("Erro ao carregar dados do Dashboard:", e);
   }
@@ -290,6 +310,22 @@ onMounted(async () => {
   width: 100%;
   max-width: 1400px;
   margin: 0 auto;
+}
+
+.kpi-link {
+  text-decoration: none;
+  color: inherit;
+}
+
+.kpi-destaque {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.btn-colher {
+  color: #c62828;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .kpi-grid {

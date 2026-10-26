@@ -64,6 +64,10 @@ const toastStore = useToastStore()
   background-color: var(--cor-cinza-escuro, #37474f);
 }
 
+.toast-warning {
+  background-color: #b45309;
+}
+
 .toast-close {
   background: transparent;
   border: none;

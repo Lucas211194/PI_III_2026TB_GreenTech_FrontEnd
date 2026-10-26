@@ -71,15 +71,17 @@
           <div class="metricas-producao">
             <div class="prod-item">
               <span class="label">Total Colhido:</span>
-              <span class="valor">{{ parseNumero(cultura.total_colhido).toFixed(2) }}</span>
+              <span class="valor">{{ formatarQuantidade(cultura.total_colhido) }}</span>
             </div>
             <div class="prod-item">
               <span class="label">Total Perda:</span>
-              <span class="valor perda">{{ parseNumero(cultura.total_perda).toFixed(2) }}</span>
+              <span class="valor perda">{{ formatarQuantidade(cultura.total_perda) }}</span>
             </div>
             <div class="prod-item">
               <span class="label">Taxa Produção:</span>
-              <span class="valor taxa">{{ parseNumero(cultura.taxa_producao).toFixed(1) }}%</span>
+              <span class="valor taxa">
+                {{ temColheita(cultura) ? `${parseNumero(cultura.taxa_producao).toFixed(1)}%` : '—' }}
+              </span>
             </div>
           </div>
         </div>
@@ -198,12 +200,12 @@
 
       <!-- MODAL CONFIRMAÇÃO DE EXCLUSÃO -->
       <ModalConfirmacao
-        v-if="modalExclusaoAberto"
+        :ativo="modalExclusaoAberto"
         titulo="Excluir Cultura"
         :mensagem="mensagemConfirmacaoExclusao"
-        texto-confirmar="Sim, Excluir Tudo"
+        texto-confirmar="Excluir"
         texto-cancelar="Cancelar"
-        :carregando="excluindo"
+        :processando="excluindo"
         @confirmar="confirmarExclusao"
         @cancelar="modalExclusaoAberto = false"
       />
@@ -217,7 +219,7 @@ import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import ModalConfirmacao from '@/components/ModalConfirmacao.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { extrairLista, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -241,9 +243,14 @@ const podeExcluir = computed(() => {
   return Boolean(authStore.isGerente || authStore.isAdmin)
 })
 
+// Sem colheita registrada, a taxa 0% passaria a ideia de que a produção toda foi perdida
+function temColheita(cultura) {
+  return parseNumero(cultura.total_colhido) + parseNumero(cultura.total_perda) > 0
+}
+
 const mensagemConfirmacaoExclusao = computed(() => {
   if (!culturaParaExcluir.value) return ''
-  return `Atenção: A exclusão da cultura "${culturaParaExcluir.value.nome_cultura}" é irreversível e apagará em cascata todos os lotes, colheitas e movimentações vinculadas a ela no sistema.`
+  return `Excluir a cultura "${culturaParaExcluir.value.nome_cultura}"? Só é possível enquanto ela não tiver lotes; com histórico de plantio, edite a cultura em vez de excluir.`
 })
 
 const formularioPadrao = () => ({
