@@ -15,6 +15,7 @@
             <option value="">Todos os parâmetros</option>
             <option value="temperatura">Temperatura</option>
             <option value="umidade">Umidade</option>
+            <option value="umidade_solo">Umidade do solo</option>
           </select>
         </div>
 
@@ -28,14 +29,14 @@
       </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando && alertasGerados.length === 0" class="loading-state">
+      <div v-if="carregando && alertas.length === 0" class="loading-state">
         <div class="spinner"></div>
-        <p>Verificando leituras e gerando alertas...</p>
+        <p>Carregando alertas...</p>
       </div>
 
       <!-- ERRO -->
       <ErroCarregamento
-        v-else-if="erroCarregamento && alertasGerados.length === 0"
+        v-else-if="erroCarregamento && alertas.length === 0"
         :mensagem="erroCarregamento"
         @tentar-novamente="carregarDados"
       />
@@ -64,6 +65,11 @@
 
             <p class="alerta-mensagem">{{ alerta.mensagem }}</p>
 
+            <p v-if="alerta.acaoSugerida" class="alerta-acao">
+              <span class="material-symbols-outlined">lightbulb</span>
+              <span><strong>Ação sugerida:</strong> {{ alerta.acaoSugerida }}</span>
+            </p>
+
             <div class="alerta-detalhes">
               <span class="dado-leitura">
                 Valor Lido: <strong>{{ alerta.valorLido }}</strong>
@@ -74,8 +80,20 @@
               <span v-if="alerta.isPadrao" class="badge-padrao" title="Sem cultura específica vinculada à mesa">
                 limite padrão
               </span>
+              <span v-if="alerta.simulado" class="badge-padrao" title="Gerado a partir de leitura do simulador de sensores">
+                simulado
+              </span>
             </div>
           </div>
+
+          <button
+            class="btn-resolver"
+            :disabled="resolvendoId === alerta.id"
+            @click="resolverAlerta(alerta)"
+          >
+            <span class="material-symbols-outlined">check</span>
+            {{ resolvendoId === alerta.id ? 'Resolvendo...' : 'Marcar como resolvido' }}
+          </button>
         </div>
       </div>
 
@@ -94,11 +112,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import climaService from '@/services/climaService'
-import estruturaService from '@/services/estruturaService'
-import loteService from '@/services/loteService'
-import culturaService from '@/services/culturaService'
-import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import apiClient from '@/services/api'
+import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -107,10 +122,9 @@ const carregando = ref(false)
 const erroCarregamento = ref('')
 const intervaloTimer = ref(null)
 
-const leiturasClima = ref([])
-const mesas = ref([])
-const lotes = ref([])
-const culturas = ref([])
+// Alertas gerados e salvos pelo back-end a partir das leituras dos sensores
+const alertas = ref([])
+const resolvendoId = ref(null)
 
 const filtroGravidade = ref('')
 const filtroParametro = ref('')
@@ -120,107 +134,33 @@ async function carregarDados() {
   erroCarregamento.value = ''
 
   try {
-    const [resClima, resMesas, resLotes, resCulturas] = await Promise.all([
-      climaService.listarLeiturasClima(),
-      estruturaService.listarMesas(),
-      loteService.listar(),
-      culturaService.listar(),
-    ])
-
-    leiturasClima.value = resClima
-    mesas.value = resMesas
-    lotes.value = resLotes
-    culturas.value = resCulturas
+    // Só os alertas que ainda não foram resolvidos, do mais recente para o mais antigo
+    const res = await apiClient.get('/alertas/', { params: { status: 'ativo' } })
+    alertas.value = extrairLista(res.data)
   } catch (err) {
-    erroCarregamento.value = mensagemDeErro(err, 'Erro ao verificar condições climáticas.')
+    erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar os alertas.')
     toastStore.error(erroCarregamento.value)
   } finally {
     carregando.value = false
   }
 }
 
-// A15: Processa alertas baseados na cultura ativa na mesa ou no limite padrão
-const alertasGerados = computed(() => {
-  const lista = []
-
-  // B11: Ordenação estrita por data decrescente
-  const leiturasOrdenadas = [...leiturasClima.value].sort(
-    (a, b) => new Date(b.data_registro) - new Date(a.data_registro),
-  )
-
-  for (const item of leiturasOrdenadas) {
-    const mesa = mesas.value.find((m) => m.id === item.mesa_id)
-    const mesaNome = mesa ? mesa.identificacao : `Mesa #${item.mesa_id}`
-
-    // Identifica se há lote ativo nesta mesa
-    const loteAtivo = lotes.value.find(
-      (l) => l.mesa_id === item.mesa_id && (l.status === 'AT' || l.status === 'DI'),
-    )
-
-    let minTemp = 16
-    let maxTemp = 30
-    let umidIdeal = 50
-    let isPadrao = true
-
-    if (loteAtivo) {
-      const cultura = culturas.value.find((c) => c.id === loteAtivo.cultura_id)
-      if (cultura) {
-        minTemp = parseNumero(cultura.temperatura_minima, 16)
-        maxTemp = parseNumero(cultura.temperatura_maxima, 30)
-        umidIdeal = parseNumero(cultura.umidade_ideal, 50)
-        isPadrao = false
-      }
-    }
-
-    const temp = parseNumero(item.temperatura)
-    const umid = parseNumero(item.umidade)
-
-    // Checagem de temperatura
-    if (temp < minTemp || temp > maxTemp) {
-      const diferenca = temp < minTemp ? minTemp - temp : temp - maxTemp
-      const gravidade = diferenca > 4 ? 'critico' : 'atencao'
-      const direcao = temp < minTemp ? 'abaixo do mínimo' : 'acima do máximo'
-
-      lista.push({
-        id: `temp-${item.id}`,
-        mesaIdentificacao: mesaNome,
-        parametro: 'temperatura',
-        parametroNome: 'Temperatura',
-        dataHora: item.data_registro,
-        valorLido: `${temp.toFixed(1)} °C`,
-        faixaEsperada: `${minTemp}°C a ${maxTemp}°C`,
-        gravidade,
-        mensagem: `Temperatura registrada está ${direcao} configurado para o cultivo.`,
-        isPadrao,
-      })
-    }
-
-    // Checagem de umidade
-    const desvioUmid = Math.abs(umid - umidIdeal)
-    if (desvioUmid > 15) {
-      const gravidade = desvioUmid > 25 ? 'critico' : 'atencao'
-      const direcao = umid < umidIdeal ? 'abaixo da ideal' : 'acima da ideal'
-
-      lista.push({
-        id: `umid-${item.id}`,
-        mesaIdentificacao: mesaNome,
-        parametro: 'umidade',
-        parametroNome: 'Umidade',
-        dataHora: item.data_registro,
-        valorLido: `${umid.toFixed(1)} %`,
-        faixaEsperada: `${umidIdeal}% (±15%)`,
-        gravidade,
-        mensagem: `Umidade relativa está ${direcao} recomendada para este lote.`,
-        isPadrao,
-      })
-    }
+async function resolverAlerta(alerta) {
+  resolvendoId.value = alerta.id
+  try {
+    await apiClient.patch(`/alertas/${alerta.id}/resolver/`)
+    // Remove da lista somente após confirmação 2xx do servidor
+    alertas.value = alertas.value.filter((a) => a.id !== alerta.id)
+    toastStore.success('Alerta marcado como resolvido.')
+  } catch (err) {
+    toastStore.error(mensagemDeErro(err, 'Não foi possível resolver o alerta.'))
+  } finally {
+    resolvendoId.value = null
   }
-
-  return lista
-})
+}
 
 const alertasFiltrados = computed(() => {
-  return alertasGerados.value.filter((alerta) => {
+  return alertas.value.filter((alerta) => {
     const atendeGravidade = !filtroGravidade.value || alerta.gravidade === filtroGravidade.value
     const atendeParametro = !filtroParametro.value || alerta.parametro === filtroParametro.value
     return atendeGravidade && atendeParametro
@@ -394,9 +334,28 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
+.alerta-acao {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-background, #f8fafc);
+  font-size: 0.85rem;
+  color: var(--color-text, #1e293b);
+  line-height: 1.4;
+}
+
+.alerta-acao .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--color-primary, #16a34a);
+}
+
 .alerta-detalhes {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 1.25rem;
   font-size: 0.8rem;
   color: var(--color-text-muted, #64748b);
@@ -414,6 +373,47 @@ onUnmounted(() => {
   border: 1px solid var(--color-border, #e2e8f0);
   color: var(--color-text-muted, #94a3b8);
   font-style: italic;
+}
+
+.btn-resolver {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: center;
+  white-space: nowrap;
+  background-color: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-border, #e2e8f0);
+  padding: 0.45rem 0.85rem;
+  border-radius: var(--radius-md, 8px);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text, #1e293b);
+  cursor: pointer;
+}
+
+.btn-resolver:hover:not(:disabled) {
+  border-color: var(--color-primary, #16a34a);
+  color: var(--color-primary, #16a34a);
+}
+
+.btn-resolver:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-resolver .material-symbols-outlined {
+  font-size: 18px;
+}
+
+@media (max-width: 640px) {
+  .card-alerta {
+    flex-wrap: wrap;
+  }
+
+  .btn-resolver {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .font-mono {
