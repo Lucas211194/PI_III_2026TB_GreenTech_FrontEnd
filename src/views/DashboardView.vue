@@ -92,6 +92,8 @@
         </div>
       </div>
 
+      <PrevisaoEstoqueWidget :limite="3" compacto />
+
       <div class="telemetry-grid">
         <div class="sensor-card">
           <h3 class="card-title">
@@ -171,6 +173,7 @@ import Sidebar from '@/components/Sidebar.vue';
 import Footer from '@/components/Footer.vue';
 import DashHeader from '@/components/DashHeader.vue';
 import WeatherWidget from '@/components/WeatherWidget.vue';
+import PrevisaoEstoqueWidget from '@/components/PrevisaoEstoqueWidget.vue';
 
 const lotes = ref([]);
 const culturas = ref([]);

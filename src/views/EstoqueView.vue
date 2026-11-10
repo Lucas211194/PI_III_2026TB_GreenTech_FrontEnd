@@ -146,6 +146,8 @@
             </div>
           </div>
 
+          <PrevisaoEstoqueWidget :key="versaoPrevisao" />
+
           <div v-if="insumosFiltrados.length > 0" class="tabela-card">
             <table class="tabela-padrao">
               <thead>
@@ -535,6 +537,8 @@
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
+import PrevisaoEstoqueWidget from '@/components/PrevisaoEstoqueWidget.vue'
+import { useRoute } from 'vue-router'
 import estoqueService from '@/services/estoqueService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
@@ -545,7 +549,11 @@ import { useToastStore } from '@/stores/toast'
 const authStore = useAuthStore()
 const toastStore = useToastStore()
 
-const abaAtiva = ref('culturas')
+const ABAS = ['culturas', 'insumos', 'mov-lotes', 'mov-insumos']
+const route = useRoute()
+const abaAtiva = ref(ABAS.includes(route.query.aba) ? route.query.aba : 'culturas')
+// Muda a cada recarga para a previsão de estoque refletir a movimentação recém-lançada
+const versaoPrevisao = ref(0)
 const carregando = ref(false)
 const salvando = ref(false)
 const dadosCarregados = ref(false)
@@ -617,6 +625,7 @@ async function carregarTudo() {
     movimentacoesLote.value = resMovLote
     movimentacoesInsumo.value = resMovInsumo
     dadosCarregados.value = true
+    versaoPrevisao.value += 1
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar dados de estoque.')
     toastStore.error(erroCarregamento.value)

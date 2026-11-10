@@ -5,7 +5,7 @@
         <span class="material-symbols-outlined icone-widget">trending_down</span>
         <div>
           <h3>Previsão de Esgotamento de Estoque</h3>
-          <p class="subtitulo">Análise preditiva de demanda baseada no modelo Prophet</p>
+          <p class="subtitulo">Projeção do consumo de cada insumo com o modelo Prophet</p>
         </div>
       </div>
       <button
@@ -13,7 +13,7 @@
         class="btn-recarregar"
         :disabled="carregando"
         title="Atualizar previsões"
-        @click="carregarPrevisoes"
+        @click="carregarPrevisoes(true)"
       >
         <span class="material-symbols-outlined" :class="{ 'anim-spin': carregando }">refresh</span>
       </button>
@@ -39,7 +39,7 @@
       <ErroCarregamento
         v-else-if="erroCarregamento"
         :mensagem="erroCarregamento"
-        @tentar-novamente="carregarPrevisoes"
+        @tentar-novamente="carregarPrevisoes()"
       />
 
       <!-- LISTA DE ITENS PREDITOS -->
@@ -51,7 +51,7 @@
               <span class="item-categoria">{{ item.categoria || 'Geral' }}</span>
             </div>
             <span :class="['badge-dias', classeCriticidade(item.diasRestantes)]">
-              {{ formatarDiasRestantes(item.diasRestantes) }}
+              {{ formatarDiasRestantes(item) }}
             </span>
           </div>
 
@@ -67,19 +67,43 @@
 
           <div class="item-rodape">
             <span class="saldo-atual">
-              Saldo: <strong>{{ parseNumero(item.quantidadeAtual).toFixed(2) }} {{ item.unidade }}</strong>
+              Saldo: <strong>{{ formatarNumero(item.quantidadeAtual) }} {{ item.unidade }}</strong>
             </span>
             <span v-if="item.dataEstimada" class="data-estimada">
               Zero estimado em: {{ formatarData(item.dataEstimada) }}
             </span>
           </div>
+
+          <div v-if="item.estoqueMinimoEm" :class="['item-compra', { urgente: item.diasAteMinimo <= 0 }]">
+            <span class="material-symbols-outlined">shopping_cart</span>
+            <span v-if="item.diasAteMinimo <= 0">
+              Abaixo do mínimo ({{ formatarNumero(item.estoqueMinimo) }} {{ item.unidade }}): comprar agora
+            </span>
+            <span v-else>Comprar até {{ formatarData(item.estoqueMinimoEm) }}, antes de chegar ao mínimo</span>
+          </div>
+
+          <div class="item-modelo" :title="item.observacao || ''">
+            <span :class="['badge-modelo', `modelo-${item.modelo}`]">{{ item.modeloNome || item.modelo }}</span>
+            <span v-if="parseNumero(item.consumoMedioDiario) > 0">
+              ~{{ formatarNumero(item.consumoMedioDiario) }} {{ item.unidade }}/dia previsto
+            </span>
+            <span v-else-if="item.observacao">{{ item.observacao }}</span>
+          </div>
         </div>
       </div>
+
+      <router-link
+        v-if="compacto && previsoes.length > 0"
+        :to="{ name: 'estoque', query: { aba: 'insumos' } }"
+        class="link-ver-todos"
+      >
+        Ver previsão de todos os insumos &rarr;
+      </router-link>
 
       <!-- VAZIO -->
       <div v-else class="empty-state">
         <span class="material-symbols-outlined">inventory_2</span>
-        <p>Nenhuma projeção de esgotamento emitida pelo servidor no momento.</p>
+        <p>Nenhum insumo cadastrado para projetar o consumo.</p>
       </div>
     </div>
   </div>
@@ -93,18 +117,29 @@ import apiClient from '@/services/api'
 import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 
+const props = defineProps({
+  // Quantos insumos mostrar (os mais críticos primeiro); vazio mostra todos
+  limite: { type: Number, default: null },
+  // Versão resumida para o dashboard, com link para a lista completa no Estoque
+  compacto: { type: Boolean, default: false },
+})
+
 const previsoes = ref([])
 const carregando = ref(false)
 const erroCarregamento = ref('')
 
-async function carregarPrevisoes() {
+async function carregarPrevisoes(recalcular = false) {
   if (!FEATURES.previsaoEstoque) return
 
   carregando.value = true
   erroCarregamento.value = ''
 
+  const params = {}
+  if (props.limite) params.limite = props.limite
+  if (recalcular) params.recalcular = 1
+
   try {
-    const res = await apiClient.get('/estoque/previsao-prophet/')
+    const res = await apiClient.get('/estoque/previsao-prophet/', { params })
     previsoes.value = extrairLista(res.data)
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(
@@ -116,8 +151,11 @@ async function carregarPrevisoes() {
   }
 }
 
-function formatarDiasRestantes(dias) {
-  const d = Number(dias)
+function formatarDiasRestantes(item) {
+  if (item.diasRestantes === null || item.diasRestantes === undefined) {
+    return item.modelo === 'sem_consumo' ? 'Sem consumo' : 'Mais de 1 ano'
+  }
+  const d = Number(item.diasRestantes)
   if (Number.isNaN(d)) return 'Indefinido'
   if (d <= 0) return 'Esgotado'
   if (d === 1) return '1 dia restante'
@@ -125,6 +163,7 @@ function formatarDiasRestantes(dias) {
 }
 
 function classeCriticidade(dias) {
+  if (dias === null || dias === undefined) return 'criticidade-baixa'
   const d = Number(dias)
   if (Number.isNaN(d) || d > 15) return 'criticidade-baixa'
   if (d > 7) return 'criticidade-media'
@@ -138,9 +177,15 @@ function classeBarra(percentual) {
   return 'barra-vermelha'
 }
 
+function formatarNumero(valor) {
+  return parseNumero(valor).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
 function formatarData(dataStr) {
   if (!dataStr) return '-'
-  const d = new Date(dataStr)
+  // 'AAAA-MM-DD' vira data local; new Date() leria como UTC e mostraria o dia anterior
+  const [ano, mes, dia] = String(dataStr).slice(0, 10).split('-').map(Number)
+  const d = ano && mes && dia ? new Date(ano, mes - 1, dia) : new Date(dataStr)
   if (Number.isNaN(d.getTime())) return dataStr
   return d.toLocaleDateString('pt-BR')
 }
@@ -305,6 +350,63 @@ onMounted(() => {
 
 .item-rodape strong {
   color: var(--color-text, #1e293b);
+}
+
+.item-compra {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.item-compra .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.item-compra.urgente {
+  color: #c62828;
+  font-weight: 600;
+}
+
+.item-modelo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.badge-modelo {
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  background-color: rgba(2, 136, 209, 0.1);
+  color: #0277bd;
+  white-space: nowrap;
+}
+
+.badge-modelo.modelo-media_movel {
+  background-color: rgba(237, 108, 2, 0.12);
+  color: #b45309;
+}
+
+.badge-modelo.modelo-sem_consumo {
+  background-color: #e2e8f0;
+  color: #475569;
+}
+
+.link-ver-todos {
+  display: inline-block;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-primary, #16a34a);
+  text-decoration: none;
+}
+
+.link-ver-todos:hover {
+  text-decoration: underline;
 }
 
 .loading-state,
