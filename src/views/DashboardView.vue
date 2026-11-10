@@ -63,7 +63,10 @@
           <div v-for="estufa in ocupacaoPorEstufa" :key="estufa.id" class="estufa-distribution-item">
             <div class="estufa-header">
               <strong>Estufa: {{ estufa.nome_setor || `#${estufa.id}` }}</strong>
-              <span class="estufa-total">{{ estufa.total > 0 ? formatarQuantidade(estufa.total) + ' plantas' : 'Vazia' }}</span>
+              <span class="estufa-total">
+                {{ estufa.total > 0 ? formatarQuantidade(estufa.total) + ' plantas' : 'Vazia' }}
+                <template v-if="estufa.disponivel > 0"> · {{ formatarQuantidade(estufa.disponivel) }} disponíveis</template>
+              </span>
             </div>
 
             <div class="stacked-bar-container" v-if="estufa.total > 0">
@@ -76,16 +79,32 @@
               >
                 <span class="segment-label" v-if="divisao.porcentagem >= 15">{{ divisao.nome }}</span>
               </div>
+              <div
+                v-if="estufa.disponivel > 0"
+                class="stacked-bar-segment segmento-disponivel"
+                :style="{ width: estufa.porcentagemDisponivel + '%' }"
+                :title="`Disponível: ${formatarQuantidade(estufa.disponivel)} plantas (${estufa.porcentagemDisponivel}%)`"
+              >
+                <span class="segment-label" v-if="estufa.porcentagemDisponivel >= 15">Disponível</span>
+              </div>
             </div>
 
             <div class="stacked-bar-container empty" v-else>
-              <div class="stacked-bar-segment empty-segment" style="width: 100%;">Disponível para Plantio</div>
+              <div class="stacked-bar-segment empty-segment" style="width: 100%;">
+                {{ estufa.disponivel > 0 ? 'Disponível para Plantio' : 'Sem mesas livres' }}
+              </div>
             </div>
 
-            <div class="distribution-legend" v-if="estufa.total > 0">
+            <div class="distribution-legend" v-if="estufa.total > 0 || estufa.disponivel > 0">
               <div v-for="divisao in estufa.divisoes" :key="`leg-${divisao.id}`" class="legend-item">
                 <span class="color-dot" :style="{ backgroundColor: divisao.cor }"></span>
                 {{ divisao.nome }} <span class="legend-pct">({{ divisao.porcentagem }}%)</span>
+              </div>
+              <div v-if="estufa.disponivel > 0" class="legend-item">
+                <span class="color-dot dot-disponivel"></span>
+                Disponível: {{ formatarQuantidade(estufa.disponivel) }} plantas em {{ estufa.mesasLivres }}
+                {{ estufa.mesasLivres === 1 ? 'mesa livre' : 'mesas livres' }}
+                <span class="legend-pct">({{ estufa.porcentagemDisponivel }}%)</span>
               </div>
             </div>
           </div>
@@ -238,9 +257,15 @@ const ocupacaoPorEstufa = computed(() => {
       totalNaEstufa += qtd;
     });
 
+    // Espaço disponível = capacidade das mesas livres (mesa ocupada ou em manutenção não recebe plantio)
+    const mesasLivres = mesasEstufa.filter(m => m.status_mesa === 'livre');
+    const disponivel = mesasLivres.reduce((soma, m) => soma + (parseFloat(m.capacidade_maxima) || 0), 0);
+    // A barra representa plantas em cultivo + espaço disponível
+    const base = totalNaEstufa + disponivel;
+
     // 4. Transforma em array calculando a % e associando a cor
     let divisoes = Object.values(mapCulturas).map((c, index) => {
-      const porcentagem = totalNaEstufa > 0 ? ((c.quantidade / totalNaEstufa) * 100).toFixed(1) : 0;
+      const porcentagem = base > 0 ? ((c.quantidade / base) * 100).toFixed(1) : 0;
       return {
         ...c,
         porcentagem: parseFloat(porcentagem),
@@ -253,6 +278,9 @@ const ocupacaoPorEstufa = computed(() => {
     return {
       ...estufa,
       total: totalNaEstufa,
+      disponivel,
+      mesasLivres: mesasLivres.length,
+      porcentagemDisponivel: base > 0 ? parseFloat(((disponivel / base) * 100).toFixed(1)) : 0,
       divisoes
     };
   });
@@ -516,6 +544,25 @@ onMounted(async () => {
   height: 10px;
   border-radius: 50%;
   display: inline-block;
+}
+
+/* Espaço livre da estufa: em branco, com borda tracejada */
+.segmento-disponivel {
+  background: #ffffff;
+  border: 1px dashed #bdbdbd;
+  box-sizing: border-box;
+}
+
+.segmento-disponivel .segment-label {
+  color: #777;
+  text-shadow: none;
+  font-weight: 600;
+}
+
+.dot-disponivel {
+  background: #ffffff;
+  border: 1px dashed #9e9e9e;
+  box-sizing: border-box;
 }
 
 .legend-pct {
