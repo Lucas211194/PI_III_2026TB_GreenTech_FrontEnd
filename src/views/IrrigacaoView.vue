@@ -16,10 +16,7 @@
         </div>
 
         <!-- CARREGANDO -->
-        <div v-if="carregando && registrosReais.length === 0" class="loading-state">
-          <div class="spinner"></div>
-          <p>Carregando registros de irrigação...</p>
-        </div>
+        <EstadoCarregamento v-if="carregando && registrosReais.length === 0" mensagem="Carregando registros de irrigação..." />
 
         <!-- ERRO -->
         <ErroCarregamento
@@ -66,10 +63,7 @@
         </div>
 
         <!-- VAZIO -->
-        <div v-else class="empty-state">
-          <span class="material-symbols-outlined empty-icon">water_drop</span>
-          <p>Nenhum registro de irrigação encontrado no servidor.</p>
-        </div>
+        <EstadoVazio v-else icone="water_drop" texto="Nenhum registro de irrigação encontrado no servidor." />
       </section>
 
       <!-- MÓDULO 2: CONTROLE OPERACIONAL E DECISÕES IA (STAND-BY VIA FEATURES.irrigacaoIA) -->
@@ -181,10 +175,11 @@
                 </tr>
               </tbody>
             </table>
-            <div v-else class="empty-state">
-              <span class="material-symbols-outlined empty-icon">psychology</span>
-              <p>{{ soMudancas ? 'Nenhuma abertura ou fechamento decidido pela IA ainda.' : 'A IA ainda não tomou decisões.' }}</p>
-            </div>
+            <EstadoVazio
+              v-else
+              icone="psychology"
+              :texto="soMudancas ? 'Nenhuma abertura ou fechamento decidido pela IA ainda.' : 'A IA ainda não tomou decisões.'"
+            />
           </div>
         </div>
       </section>
@@ -194,13 +189,15 @@
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
 import AvisoLocalizacao from '@/components/AvisoLocalizacao.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { extrairLista, formatarDataHora, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 import { useToastStore } from '@/stores/toast'
 
@@ -292,18 +289,6 @@ function obterIdentificacaoMesa(mesaId) {
   return m ? m.identificacao : `Mesa #${mesaId}`
 }
 
-function formatarDataHora(dataHoraStr) {
-  if (!dataHoraStr) return '-'
-  const d = new Date(dataHoraStr)
-  if (Number.isNaN(d.getTime())) return dataHoraStr
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 async function alternarModoOperacao() {
   if (!FEATURES.irrigacaoIA) return
@@ -372,12 +357,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.irrigacao-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .irrigacao-container {
   margin-top: 1.5rem;
   display: flex;
@@ -420,10 +399,6 @@ onMounted(() => {
   background-color: var(--color-background, #f8fafc);
 }
 
-.anim-spin {
-  animation: spin 1s linear infinite;
-}
-
 .tabela-card {
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
@@ -452,14 +427,6 @@ onMounted(() => {
   color: var(--color-text, #1e293b);
 }
 
-.font-destaque {
-  font-weight: 600;
-}
-
-.font-mono {
-  font-family: monospace;
-}
-
 .col-obs {
   max-width: 200px;
   overflow: hidden;
@@ -483,23 +450,6 @@ onMounted(() => {
 .status-inativa {
   background-color: rgba(100, 116, 139, 0.12);
   color: #64748b;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-  color: var(--color-text-muted, #64748b);
-}
-
-.empty-icon {
-  font-size: 40px;
-  margin-bottom: 0.5rem;
 }
 
 .aviso-ia {
@@ -559,28 +509,5 @@ onMounted(() => {
   border: none;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 3rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0.75rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

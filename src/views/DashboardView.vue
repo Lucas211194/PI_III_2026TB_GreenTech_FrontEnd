@@ -1,16 +1,8 @@
 <template>
-  <Sidebar />
-  <main class="main-content">
-
-    <div class="dashboard-top-bar">
-      <DashHeader
-        title="Painel Geral"
-        subtitle="Visão estratégica da infraestrutura, produção e próximas colheitas."
-      />
-      <div class="widget-wrapper">
-        <WeatherWidget />
-      </div>
-    </div>
+  <PageLayout title="Painel Geral" subtitle="Visão estratégica da infraestrutura, produção e próximas colheitas.">
+    <template #header-actions>
+      <WeatherWidget />
+    </template>
 
     <section class="dashboard-content">
 
@@ -55,9 +47,7 @@
           <span class="material-symbols-outlined" style="color: var(--primary-dark);">pie_chart</span> Distribuição de Culturas por Estufa
         </h3>
 
-        <div v-if="ocupacaoPorEstufa.length === 0" class="empty-state">
-          Nenhuma estufa cadastrada.
-        </div>
+        <EstadoVazio v-if="ocupacaoPorEstufa.length === 0" compacto texto="Nenhuma estufa cadastrada." />
 
         <div class="estufa-distribution-grid" v-else>
           <div v-for="estufa in ocupacaoPorEstufa" :key="estufa.id" class="estufa-distribution-item">
@@ -119,9 +109,7 @@
             <span class="material-symbols-outlined" style="color: var(--primary-green);">alarm</span> Maturação e Colheitas
           </h3>
 
-          <div v-if="lotesMaisProximosColheita.length === 0" class="empty-state">
-            Nenhum lote em maturação no momento.
-          </div>
+          <EstadoVazio v-if="lotesMaisProximosColheita.length === 0" compacto texto="Nenhum lote em maturação no momento." />
 
           <div v-else class="list-container">
             <div v-for="l in lotesMaisProximosColheita" :key="l.id" class="list-item">
@@ -150,9 +138,7 @@
             <span class="material-symbols-outlined" style="color: #0288d1;">history</span> Atividades Recentes
           </h3>
 
-          <div v-if="movimentacoesRecentes.length === 0" class="empty-state">
-            Sem movimentações recentes registradas.
-          </div>
+          <EstadoVazio v-if="movimentacoesRecentes.length === 0" compacto texto="Sem movimentações recentes registradas." />
 
           <div v-else class="list-container">
             <div v-for="m in movimentacoesRecentes" :key="m.id" class="activity-item">
@@ -180,17 +166,15 @@
         </div>
       </div>
     </section>
-    <Footer />
-  </main>
+  </PageLayout>
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
 import { ref, computed, onMounted } from 'vue';
 import apiClient from '@/services/api';
 import { extrairLista, formatarQuantidade } from '@/services/apiHelpers';
-import Sidebar from '@/components/Sidebar.vue';
-import Footer from '@/components/Footer.vue';
-import DashHeader from '@/components/DashHeader.vue';
+import PageLayout from '@/components/PageLayout.vue';
 import WeatherWidget from '@/components/WeatherWidget.vue';
 import PrevisaoEstoqueWidget from '@/components/PrevisaoEstoqueWidget.vue';
 
@@ -325,22 +309,11 @@ onMounted(async () => {
    ESTRUTURA BASE DO DASHBOARD
    ========================================= */
 
-.dashboard-top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding-right: 40px;
-  padding-top: 10px;
-}
 
 .dashboard-content {
   display: flex;
   flex-direction: column;
   gap: 30px;
-  padding: 20px 40px;
-  width: 100%;
-  max-width: 1400px;
-  margin: 0 auto;
 }
 
 .kpi-link {
@@ -439,13 +412,6 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   font-size: 1.1rem;
-}
-
-.empty-state {
-  color: #999;
-  font-style: italic;
-  padding: 10px;
-  text-align: center;
 }
 
 /* =========================================
@@ -671,15 +637,7 @@ onMounted(async () => {
    RESPONSIVIDADE (Mobile)
    ========================================= */
 @media (max-width: 768px) {
-  .dashboard-top-bar {
-    flex-direction: column;
-    padding-right: 0;
-    gap: 15px;
-  }
 
-  .dashboard-content {
-    padding: 20px 15px;
-  }
 
   .estufa-distribution-grid {
     grid-template-columns: 1fr;

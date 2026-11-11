@@ -556,12 +556,6 @@ async function handleLogin() {
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
 .card-footer {
   margin: var(--space-6) 0 0;
   text-align: center;

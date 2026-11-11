@@ -27,10 +27,7 @@
     </div>
 
     <!-- CARREGANDO -->
-    <div v-if="carregando" class="loading-state">
-      <div class="spinner-sm"></div>
-      <span>Carregando estrutura física...</span>
-    </div>
+    <EstadoCarregamento v-if="carregando" mensagem="Carregando estrutura física..." compacto />
 
     <!-- ABA: ESTUFAS -->
     <div v-else-if="abaInterna === 'estufas'" class="conteudo-tab">
@@ -71,9 +68,7 @@
           </tbody>
         </table>
       </div>
-      <div v-else class="empty-state">
-        <p>Nenhuma estufa cadastrada.</p>
-      </div>
+      <EstadoVazio v-else compacto texto="Nenhuma estufa cadastrada." />
     </div>
 
     <!-- ABA: MESAS -->
@@ -115,117 +110,112 @@
           </tbody>
         </table>
       </div>
-      <div v-else class="empty-state">
-        <p>Nenhuma mesa cadastrada.</p>
-      </div>
+      <EstadoVazio v-else compacto texto="Nenhuma mesa cadastrada." />
     </div>
 
     <!-- MODAL ESTUFA -->
-    <div v-if="modalEstufaAberto" class="modal-overlay" @click.self="modalEstufaAberto = false">
-      <div class="modal-card">
-        <h3>{{ modoEdicaoEstufa ? 'Editar Estufa' : 'Nova Estufa' }}</h3>
-        <form @submit.prevent="salvarEstufa">
-          <div class="form-group">
-            <label for="est-setor">Nome do Setor / Estufa *</label>
-            <input id="est-setor" v-model="formEstufa.nome_setor" type="text" required placeholder="Ex.: Estufa Hidropônica A" />
-          </div>
+    <ModalFormulario v-if="modalEstufaAberto" :titulo="modoEdicaoEstufa ? 'Editar Estufa' : 'Nova Estufa'" estreito @fechar="modalEstufaAberto = false">
+      <form @submit.prevent="salvarEstufa">
+        <div class="form-group">
+          <label for="est-setor">Nome do Setor / Estufa *</label>
+          <input id="est-setor" v-model="formEstufa.nome_setor" type="text" required placeholder="Ex.: Estufa Hidropônica A" />
+        </div>
 
-          <div class="form-group">
-            <label for="est-cultivo">Tipo de Cultivo</label>
-            <input id="est-cultivo" v-model="formEstufa.tipo_cultivo" type="text" placeholder="Ex.: Hidroponia NFT, Substrato..." />
-          </div>
+        <div class="form-group">
+          <label for="est-cultivo">Tipo de Cultivo</label>
+          <input id="est-cultivo" v-model="formEstufa.tipo_cultivo" type="text" placeholder="Ex.: Hidroponia NFT, Substrato..." />
+        </div>
 
+        <div class="form-group">
+          <label for="est-capacidade">Capacidade Máxima *</label>
+          <input
+            id="est-capacidade"
+            v-model.number="formEstufa.capacidade_maxima"
+            type="number"
+            :min="Math.max(1, minimoCapacidadeEstufa)"
+            required
+          />
+          <small v-if="modoEdicaoEstufa && minimoCapacidadeEstufa > 0" class="dica-capacidade">
+            As mesas já somam {{ minimoCapacidadeEstufa }}; a capacidade não pode ser menor que isso.
+          </small>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secundario" :disabled="salvando" @click="modalEstufaAberto = false">Cancelar</button>
+          <button type="submit" class="btn-primario" :disabled="salvando">
+            {{ salvando ? 'Salvando...' : 'Salvar Estufa' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
+
+    <!-- MODAL MESA -->
+    <ModalFormulario v-if="modalMesaAberto" :titulo="modoEdicaoMesa ? 'Editar Mesa' : 'Nova Mesa de Cultivo'" estreito @fechar="modalMesaAberto = false">
+      <form @submit.prevent="salvarMesa">
+        <div class="form-group">
+          <label for="mesa-ident">Identificação da Mesa *</label>
+          <input id="mesa-ident" v-model="formMesa.identificacao" type="text" required placeholder="Ex.: MESA-01" />
+        </div>
+
+        <div class="form-group">
+          <label for="mesa-estufa">Estufa Vinculada</label>
+          <select id="mesa-estufa" v-model="formMesa.estufa">
+            <option :value="null">Sem estufa vinculada (Livre/Geral)</option>
+            <option v-for="e in estufas" :key="e.id" :value="e.id">
+              {{ e.nome_setor }}
+            </option>
+          </select>
+        </div>
+
+        <div class="form-row">
           <div class="form-group">
-            <label for="est-capacidade">Capacidade Máxima *</label>
+            <label for="mesa-capacidade">Capacidade Máxima *</label>
             <input
-              id="est-capacidade"
-              v-model.number="formEstufa.capacidade_maxima"
+              id="mesa-capacidade"
+              v-model.number="formMesa.capacidade_maxima"
               type="number"
-              :min="Math.max(1, minimoCapacidadeEstufa)"
+              min="1"
+              :max="disponivelParaMesa ?? undefined"
               required
             />
-            <small v-if="modoEdicaoEstufa && minimoCapacidadeEstufa > 0" class="dica-capacidade">
-              As mesas já somam {{ minimoCapacidadeEstufa }}; a capacidade não pode ser menor que isso.
+            <small v-if="disponivelParaMesa !== null" :class="['dica-capacidade', { 'dica-erro': capacidadeMesaExcedida }]">
+              Disponível na estufa: {{ disponivelParaMesa }}
             </small>
           </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn-secundario" :disabled="salvando" @click="modalEstufaAberto = false">Cancelar</button>
-            <button type="submit" class="btn-primario" :disabled="salvando">
-              {{ salvando ? 'Salvando...' : 'Salvar Estufa' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- MODAL MESA -->
-    <div v-if="modalMesaAberto" class="modal-overlay" @click.self="modalMesaAberto = false">
-      <div class="modal-card">
-        <h3>{{ modoEdicaoMesa ? 'Editar Mesa' : 'Nova Mesa de Cultivo' }}</h3>
-        <form @submit.prevent="salvarMesa">
           <div class="form-group">
-            <label for="mesa-ident">Identificação da Mesa *</label>
-            <input id="mesa-ident" v-model="formMesa.identificacao" type="text" required placeholder="Ex.: MESA-01" />
-          </div>
-
-          <div class="form-group">
-            <label for="mesa-estufa">Estufa Vinculada</label>
-            <select id="mesa-estufa" v-model="formMesa.estufa">
-              <option :value="null">Sem estufa vinculada (Livre/Geral)</option>
-              <option v-for="e in estufas" :key="e.id" :value="e.id">
-                {{ e.nome_setor }}
-              </option>
+            <label for="mesa-status">Status da Mesa</label>
+            <input v-if="formMesa.lote_em_cultivo" id="mesa-status" type="text" value="Ocupada" disabled />
+            <select v-else id="mesa-status" v-model="formMesa.status_mesa">
+              <option value="livre">Livre</option>
+              <option value="manutencao">Em manutenção</option>
             </select>
+            <small v-if="formMesa.lote_em_cultivo" class="hint-capacidade">
+              Ocupada pelo lote #{{ formMesa.lote_em_cultivo }}. Fica livre ao colher ou registrar a perda.
+            </small>
           </div>
+        </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="mesa-capacidade">Capacidade Máxima *</label>
-              <input
-                id="mesa-capacidade"
-                v-model.number="formMesa.capacidade_maxima"
-                type="number"
-                min="1"
-                :max="disponivelParaMesa ?? undefined"
-                required
-              />
-              <small v-if="disponivelParaMesa !== null" :class="['dica-capacidade', { 'dica-erro': capacidadeMesaExcedida }]">
-                Disponível na estufa: {{ disponivelParaMesa }}
-              </small>
-            </div>
+        <div class="form-group">
+          <label for="mesa-obs">Observações</label>
+          <textarea id="mesa-obs" v-model="formMesa.observacoes" rows="2"></textarea>
+        </div>
 
-            <div class="form-group">
-              <label for="mesa-status">Status da Mesa</label>
-              <input v-if="formMesa.lote_em_cultivo" id="mesa-status" type="text" value="Ocupada" disabled />
-              <select v-else id="mesa-status" v-model="formMesa.status_mesa">
-                <option value="livre">Livre</option>
-                <option value="manutencao">Em manutenção</option>
-              </select>
-              <small v-if="formMesa.lote_em_cultivo" class="hint-capacidade">
-                Ocupada pelo lote #{{ formMesa.lote_em_cultivo }}. Fica livre ao colher ou registrar a perda.
-              </small>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label for="mesa-obs">Observações</label>
-            <textarea id="mesa-obs" v-model="formMesa.observacoes" rows="2"></textarea>
-          </div>
-
-          <div class="modal-actions">
-            <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMesaAberto = false">Cancelar</button>
-            <button type="submit" class="btn-primario" :disabled="salvando">
-              {{ salvando ? 'Salvando...' : 'Salvar Mesa' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMesaAberto = false">Cancelar</button>
+          <button type="submit" class="btn-primario" :disabled="salvando">
+            {{ salvando ? 'Salvando...' : 'Salvar Mesa' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
   </div>
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import estruturaService from '@/services/estruturaService'
 import { mensagemDeErro } from '@/services/apiHelpers'
@@ -481,14 +471,6 @@ onMounted(() => {
   border-bottom: 1px solid var(--color-border, #e2e8f0);
 }
 
-.font-mono {
-  font-family: monospace;
-}
-
-.font-destaque {
-  font-weight: 600;
-}
-
 .badge-status-mesa {
   display: inline-block;
   padding: 0.15rem 0.4rem;
@@ -509,105 +491,6 @@ onMounted(() => {
 .acoes-btns {
   display: flex;
   gap: 0.25rem;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.2rem;
-  color: var(--color-text-muted, #64748b);
-  display: flex;
-  align-items: center;
-}
-
-.btn-icon.btn-danger:hover {
-  color: var(--color-danger, #ef4444);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 1.5rem;
-  color: var(--color-text-muted, #64748b);
-  font-size: 0.85rem;
-}
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  color: var(--color-text-muted, #64748b);
-}
-
-.spinner-sm {
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: 1rem;
-}
-
-.modal-card {
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 460px;
-}
-
-.modal-card h3 {
-  margin: 0 0 1rem 0;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 0.85rem;
-}
-
-.form-group label {
-  font-size: 0.8rem;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-md, 8px);
-  font-size: 0.85rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1.25rem;
 }
 
 .btn-secundario {

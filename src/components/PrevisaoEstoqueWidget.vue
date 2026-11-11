@@ -30,10 +30,7 @@
     <!-- FLAG LIGADA: OPERAÇÃO REAL -->
     <div v-else class="widget-conteudo">
       <!-- CARREGANDO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Calculando projeções de consumo...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Calculando projeções de consumo..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -101,20 +98,19 @@
       </router-link>
 
       <!-- VAZIO -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined">inventory_2</span>
-        <p>Nenhum insumo cadastrado para projetar o consumo.</p>
-      </div>
+      <EstadoVazio v-else compacto icone="inventory_2" texto="Nenhum insumo cadastrado para projetar o consumo." />
     </div>
   </div>
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, onMounted } from 'vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { extrairLista, formatarData, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 
 const props = defineProps({
@@ -181,14 +177,6 @@ function formatarNumero(valor) {
   return parseNumero(valor).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
 }
 
-function formatarData(dataStr) {
-  if (!dataStr) return '-'
-  // 'AAAA-MM-DD' vira data local; new Date() leria como UTC e mostraria o dia anterior
-  const [ano, mes, dia] = String(dataStr).slice(0, 10).split('-').map(Number)
-  const d = ano && mes && dia ? new Date(ano, mes - 1, dia) : new Date(dataStr)
-  if (Number.isNaN(d.getTime())) return dataStr
-  return d.toLocaleDateString('pt-BR')
-}
 
 onMounted(() => {
   carregarPrevisoes()
@@ -248,10 +236,6 @@ onMounted(() => {
 .btn-recarregar:hover {
   background-color: var(--color-background, #f8fafc);
   color: var(--color-text, #1e293b);
-}
-
-.anim-spin {
-  animation: spin 1s linear infinite;
 }
 
 .lista-previsoes {
@@ -407,32 +391,5 @@ onMounted(() => {
 
 .link-ver-todos:hover {
   text-decoration: underline;
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2.5rem 1rem;
-  text-align: center;
-  color: var(--color-text-muted, #64748b);
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0.75rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

@@ -1,20 +1,18 @@
 <template>
-  <PageLayout>
+  <PageLayout
+    title="Layout Físico das Estufas"
+    subtitle="Distribuição espacial das mesas de cultivo, ocupação e parâmetros por setor"
+  >
+    <template #header-actions>
+      <button class="btn-toggle-painel" @click="exibirPainelGerenciamento = !exibirPainelGerenciamento">
+        <span class="material-symbols-outlined">
+          {{ exibirPainelGerenciamento ? 'expand_less' : 'tune' }}
+        </span>
+        {{ exibirPainelGerenciamento ? 'Ocultar Gerenciamento' : 'Gerenciar Estrutura Física' }}
+      </button>
+    </template>
+
     <div class="layout-view">
-      <div class="header-secao">
-        <div>
-          <h2>Layout Físico das Estufas</h2>
-          <p class="subtitulo">
-            Distribuição espacial das mesas de cultivo, ocupação e parâmetros por setor
-          </p>
-        </div>
-        <button class="btn-toggle-painel" @click="exibirPainelGerenciamento = !exibirPainelGerenciamento">
-          <span class="material-symbols-outlined">
-            {{ exibirPainelGerenciamento ? 'expand_less' : 'tune' }}
-          </span>
-          {{ exibirPainelGerenciamento ? 'Ocultar Gerenciamento' : 'Gerenciar Estrutura Física' }}
-        </button>
-      </div>
 
       <!-- PAINEL DE GESTÃO FÍSICA (ESTUFAS E MESAS) -->
       <transition name="fade">
@@ -25,10 +23,7 @@
       </transition>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Montando layout físico das estufas...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Montando layout físico das estufas..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -152,19 +147,18 @@
       </div>
 
       <!-- VAZIO -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">grid_off</span>
-        <h3>Nenhuma estufa cadastrada no sistema</h3>
-        <p>Utilize o painel de gerenciamento físico para cadastrar suas estufas e mesas de cultivo.</p>
+      <EstadoVazio v-else icone="grid_off" titulo="Nenhuma estufa cadastrada no sistema" texto="Utilize o painel de gerenciamento físico para cadastrar suas estufas e mesas de cultivo.">
         <button class="btn-primario" @click="exibirPainelGerenciamento = true">
           Cadastrar Primeira Estufa
         </button>
-      </div>
+      </EstadoVazio>
     </div>
   </PageLayout>
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
@@ -260,32 +254,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.layout-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
-.header-secao {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.header-secao h2 {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-.subtitulo {
-  color: var(--color-text-muted, #64748b);
-  margin-top: 0.25rem;
-  font-size: 0.95rem;
-}
-
 .btn-toggle-painel {
   display: inline-flex;
   align-items: center;
@@ -504,11 +472,6 @@ onMounted(() => {
   font-size: 0.7rem;
 }
 
-.font-destaque {
-  font-weight: 600;
-  color: var(--color-text, #1e293b);
-}
-
 .btn-primario {
   background-color: var(--color-primary, #16a34a);
   color: #fff;
@@ -517,39 +480,6 @@ onMounted(() => {
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
   font-weight: 500;
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-text-muted, #64748b);
-  margin-bottom: 1rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 .fade-enter-active,

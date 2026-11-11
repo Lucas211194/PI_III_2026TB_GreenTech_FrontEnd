@@ -6,24 +6,70 @@
 
 /* --- 1. VARIÁVEIS (CORES E ESPAÇAMENTOS) --- */
 :root {
-  /* Cores Principais GreenTech */
+  --color-primary: #3a5a40;
+  --color-primary-dark: #344e41;
+  --color-accent: #bc6c25;
+  --color-bg: #f4f1ea;
+  --color-surface: #ffffff;
+  --color-surface-glass: rgba(255, 255, 255, 0.7);
+  --color-surface-glass-strong: rgba(255, 255, 255, 0.88);
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.4);
+  --color-text: #283618;
+  --color-text-muted: #666666;
+  --color-text-soft: #888888;
+  --color-text-inverse: #ffffff;
+  --color-success: #2d5a27;
+  --color-success-bg: rgba(76, 175, 80, 0.15);
+
+  --color-warning: #bc6c25;
+  --color-warning-bg: rgba(188, 108, 37, 0.15);
+
+  --color-danger: #d32f2f;
+  --color-danger-bg: #ffebee;
+  --color-danger-border: #ffcdd2;
+
+  --color-info: #1565c0;
+  --color-info-bg: rgba(25, 118, 210, 0.12);
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Segoe UI', Inter, -apple-system, BlinkMacSystemFont, Roboto, Arial, sans-serif;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 30px;
+  --space-8: 40px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 4px 10px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 8px 20px rgba(58, 90, 64, 0.15);
+  --shadow-lg: 0 15px 35px rgba(0, 0, 0, 0.05);
+  --shadow-panel: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --sidebar-collapsed-width: 85px;
+  --sidebar-expanded-width: 260px;
+  --page-inline-padding: 40px;
+  --page-inline-padding-mobile: 15px;
+  --transition-fast: 0.2s ease;
+  --transition-base: 0.3s ease;
+  --transition-layout: 0.4s ease;
   --primary-green: #3a5a40;
   --primary-dark: #344e41;
   --accent-terracota: #bc6c25;
   --bg-creme: #f4f1ea;
-
-  /* Cores Neutras / Textos */
   --white: #ffffff;
   --text-main: #283618;
   --text-light: #666666;
   --text-white-mute: rgba(255, 255, 255, 0.7);
   --gray-light: #dad7cd;
-
-  /* Efeitos Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.4);
-
-  /* Feedbacks */
   --success-bg: rgba(76, 175, 80, 0.15);
   --success-text: #2d5a27;
   --warning-bg: rgba(188, 108, 37, 0.15);
@@ -49,6 +95,13 @@
 }
 
 body {
+  background: var(--color-bg);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+  text-rendering: optimizeLegibility;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   background-color: var(--bg-creme);
   color: var(--text-main);
@@ -57,85 +110,12 @@ body {
 }
 
 /* --- 3. LAYOUT GERAL E SIDEBAR --- */
-.main-content {
-  flex: 1;
-  margin-left: 100px; /* Espaço para a sidebar fechada */
-  margin-right: 15px;
-  padding: 40px 0 0 0;
-  transition: margin-left 0.4s ease;
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
 
 /* --- 4. CABEÇALHOS DE TELA --- */
-.dash-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 40px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-}
-
-.dash-header h1 {
-  font-family: 'Poppins', sans-serif;
-  color: var(--primary-green);
-  font-size: 2rem;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.dash-header p {
-  color: var(--text-light);
-  font-size: 1rem;
-}
 
 /* --- 5. CARDS GLOBAIS (O fundo de vidro) --- */
-.global-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  border-radius: 24px;
-  padding: 30px;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.05);
-}
 
 /* --- 6. FORMULÁRIOS E INPUTS GLOBAIS --- */
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 15px;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--primary-dark);
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  width: 100%;
-  background: var(--white);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  padding: 12px 15px;
-  font-size: 0.95rem;
-  color: var(--text-main);
-  outline: none;
-  transition: all 0.3s;
-}
-
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  border-color: var(--primary-green);
-  box-shadow: 0 0 0 4px rgba(58, 90, 64, 0.1);
-}
 
 /* --- 7. BOTÕES GLOBAIS --- */
 .btn-save,
@@ -160,23 +140,10 @@ body {
   box-shadow: 0 8px 20px rgba(58, 90, 64, 0.2);
 }
 
-.btn-outline {
-  background: transparent;
-  border: 2px solid var(--primary-green);
-  color: var(--primary-green);
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: 0.3s;
-}
-
-.btn-outline:hover {
-  background: var(--primary-green);
-  color: var(--white);
-}
-
 .btn-delete {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   background: var(--danger-bg);
   border: 1px solid #ffcdd2;
   color: var(--danger-text);
@@ -193,46 +160,10 @@ body {
 }
 
 /* --- 8. BADGES GLOBAIS (Status) --- */
-.badge {
-  padding: 5px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-.badge-good {
-  background-color: var(--success-bg);
-  color: var(--success-text);
-}
-.badge-low {
-  background-color: var(--warning-bg);
-  color: var(--warning-text);
-}
-.badge-out {
-  background-color: var(--danger-bg);
-  color: var(--danger-text);
-}
 
 /* --- 9. COMPONENTES DA TELA DE LOGIN --- */
 
 /* Cards Informativos (Efeito Vidro / Glassmorphism) */
-.feature-card {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 12px;
-  padding: 1.5rem;
-  margin-bottom: 1rem;
-  transition: all 0.3s ease;
-}
-
-.feature-card:hover {
-  transform: translateY(-4px);
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-}
 
 /* Remove o fundo amarelo padrão do preenchimento automático (autofill) */
 input:-webkit-autofill,
@@ -245,24 +176,6 @@ input:-webkit-autofill:active {
 }
 
 /* Estilo moderno para os campos de texto do login */
-.login-input {
-  width: 100%;
-  padding: 14px 14px 14px 40px;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 8px;
-  background-color: #f9fafb;
-  color: var(--text-main);
-  font-size: 1rem;
-  transition: all 0.3s ease;
-  margin-bottom: 1.5rem;
-}
-
-.login-input:focus {
-  outline: none;
-  border-color: var(--primary-green);
-  background-color: var(--white);
-  box-shadow: 0 0 0 4px rgba(58, 90, 64, 0.15);
-}
 
 /* Botão específico de Login */
 .btn-login {
@@ -301,34 +214,14 @@ input:-webkit-autofill:active {
     box-shadow: 5px 0 20px rgba(0, 0, 0, 0.2);
   }
 
-  .main-content {
-    margin-left: 0 !important;
-    padding-top: 20px !important;
-  }
-
   .dash-header,
-  .registration-container,
-  .sensores-grid-container,
-  .historico-container,
-  .irrig-summary-bar,
-  .irrig-section,
-  .estufas-split-view,
-  .estufa-resumo,
-  .lotes-split-view,
-  .lotes-action-bar,
-  .perfil-layout,
-  .config-layout {
+  .historico-container {
     padding-left: 15px !important;
     padding-right: 15px !important;
   }
 
-  .dash-header h1 {
-    font-size: 1.5rem !important;
-  }
-
   .btn-generate,
-  .btn-save,
-  .form-actions {
+  .btn-save {
     width: 100%;
     justify-content: center;
     flex-direction: column;

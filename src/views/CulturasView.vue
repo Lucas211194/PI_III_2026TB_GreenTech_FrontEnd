@@ -1,35 +1,31 @@
 <template>
-  <PageLayout>
-    <div class="culturas-container">
-      <header class="header-actions">
-        <div>
-          <h2>Culturas Cadastradas</h2>
-          <p class="subtitle">Gerencie as espécies e parâmetros de cultivo da estufa</p>
-        </div>
-        <div class="toolbar">
-          <label class="search-box-estoque">
-            <span class="material-symbols-outlined search-icon">search</span>
-            <input v-model="busca" class="search-input" type="search" placeholder="Buscar cultura" aria-label="Buscar cultura" />
-          </label>
-          <select v-model="ordenacao" class="select-ordenar" aria-label="Ordenar culturas">
-            <option v-for="(op, chave) in ORDENACOES" :key="chave" :value="chave">Ordenar: {{ op.nome }}</option>
-          </select>
-          <!-- Exportação em CSV: cada página terá a sua, implementada depois -->
-          <button class="btn-outline btn-exportar" disabled title="Exportação em CSV em breve">
-            <span class="material-symbols-outlined">download</span>
-            Exportar CSV
-          </button>
-          <button class="btn-primary" @click="abrirModalNovaCultura">
-            <span class="material-symbols-outlined">add</span>
-            Nova Cultura
-          </button>
-        </div>
-      </header>
-
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando culturas...</p>
+  <PageLayout title="Culturas Cadastradas" subtitle="Gerencie as espécies e parâmetros de cultivo da estufa">
+    <template #header-actions>
+      <div class="acoes-cabecalho">
+        <!-- Exportação em CSV: cada página terá a sua, implementada depois -->
+        <button class="btn-outline btn-exportar" disabled title="Exportação em CSV em breve">
+          <span class="material-symbols-outlined">download</span>
+          Exportar CSV
+        </button>
+        <button class="btn-primary" @click="abrirModalNovaCultura">
+          <span class="material-symbols-outlined">add</span>
+          Nova Cultura
+        </button>
       </div>
+    </template>
+
+    <div class="culturas-container">
+      <div class="toolbar">
+        <label class="search-box-estoque">
+          <span class="material-symbols-outlined search-icon">search</span>
+          <input v-model="busca" class="search-input" type="search" placeholder="Buscar cultura" aria-label="Buscar cultura" />
+        </label>
+        <select v-model="ordenacao" class="select-ordenar" aria-label="Ordenar culturas">
+          <option v-for="(op, chave) in ORDENACOES" :key="chave" :value="chave">Ordenar: {{ op.nome }}</option>
+        </select>
+      </div>
+
+      <EstadoCarregamento v-if="carregando" mensagem="Carregando culturas..." />
 
       <ErroCarregamento
         v-else-if="erroCarregamento"
@@ -165,122 +161,111 @@
         <p v-else class="painel-vazio">Nenhuma cultura encontrada para esse filtro.</p>
       </template>
 
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">potted_plant</span>
-        <h3>Nenhuma cultura cadastrada</h3>
-        <p>Cadastre os parâmetros da primeira cultura para iniciar o plantio.</p>
+      <EstadoVazio v-else icone="potted_plant" titulo="Nenhuma cultura cadastrada" texto="Cadastre os parâmetros da primeira cultura para iniciar o plantio.">
         <button class="btn-primary" @click="abrirModalNovaCultura">Cadastrar Cultura</button>
-      </div>
+      </EstadoVazio>
 
       <!-- MODAL FORMULÁRIO (CADASTRO / EDIÇÃO) -->
-      <div v-if="exibirModal" class="modal-overlay" @click.self="fecharModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>{{ modoEdicao ? 'Editar Cultura' : 'Nova Cultura' }}</h3>
-            <button class="btn-close" @click="fecharModal">
-              <span class="material-symbols-outlined">close</span>
-            </button>
+      <ModalFormulario v-if="exibirModal" :titulo="modoEdicao ? 'Editar Cultura' : 'Nova Cultura'" @fechar="fecharModal">
+
+        <form @submit.prevent="salvarCultura">
+          <div class="form-group">
+            <label for="nome-cultura">Nome da Cultura *</label>
+            <input
+              id="nome-cultura"
+              v-model="formulario.nome_cultura"
+              type="text"
+              required
+              placeholder="Ex.: Tomate Cereja"
+            />
           </div>
 
-          <form @submit.prevent="salvarCultura">
+          <div class="form-group">
+            <label for="categoria-cultura">Categoria *</label>
+            <select id="categoria-cultura" v-model="formulario.categoria" required>
+              <option v-for="op in OPCOES_CATEGORIA" :key="op.valor" :value="op.valor">{{ op.nome }}</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="descricao-cultura">Descrição</label>
+            <textarea
+              id="descricao-cultura"
+              v-model="formulario.descricao"
+              rows="2"
+              placeholder="Informações gerais da espécie..."
+            ></textarea>
+          </div>
+
+          <div class="form-row">
             <div class="form-group">
-              <label for="nome-cultura">Nome da Cultura *</label>
+              <label for="tempo-colheita">Ciclo Colheita (dias) *</label>
               <input
-                id="nome-cultura"
-                v-model="formulario.nome_cultura"
-                type="text"
+                id="tempo-colheita"
+                v-model.number="formulario.tempo_medio_colheita"
+                type="number"
+                min="1"
                 required
-                placeholder="Ex.: Tomate Cereja"
               />
             </div>
-
             <div class="form-group">
-              <label for="categoria-cultura">Categoria *</label>
-              <select id="categoria-cultura" v-model="formulario.categoria" required>
-                <option v-for="op in OPCOES_CATEGORIA" :key="op.valor" :value="op.valor">{{ op.nome }}</option>
-              </select>
+              <label for="umidade-ideal">Umidade Ideal (%) *</label>
+              <input
+                id="umidade-ideal"
+                v-model.number="formulario.umidade_ideal"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                required
+              />
             </div>
+          </div>
 
+          <div class="form-row">
             <div class="form-group">
-              <label for="descricao-cultura">Descrição</label>
-              <textarea
-                id="descricao-cultura"
-                v-model="formulario.descricao"
-                rows="2"
-                placeholder="Informações gerais da espécie..."
-              ></textarea>
+              <label for="temp-minima">Temp. Mínima (°C) *</label>
+              <input
+                id="temp-minima"
+                v-model.number="formulario.temperatura_minima"
+                type="number"
+                step="0.1"
+                required
+              />
             </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="tempo-colheita">Ciclo Colheita (dias) *</label>
-                <input
-                  id="tempo-colheita"
-                  v-model.number="formulario.tempo_medio_colheita"
-                  type="number"
-                  min="1"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label for="umidade-ideal">Umidade Ideal (%) *</label>
-                <input
-                  id="umidade-ideal"
-                  v-model.number="formulario.umidade_ideal"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="100"
-                  required
-                />
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="temp-minima">Temp. Mínima (°C) *</label>
-                <input
-                  id="temp-minima"
-                  v-model.number="formulario.temperatura_minima"
-                  type="number"
-                  step="0.1"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label for="temp-maxima">Temp. Máxima (°C) *</label>
-                <input
-                  id="temp-maxima"
-                  v-model.number="formulario.temperatura_maxima"
-                  type="number"
-                  step="0.1"
-                  required
-                />
-              </div>
-            </div>
-
             <div class="form-group">
-              <label for="observacoes-cultura">Observações Técnicas</label>
-              <textarea
-                id="observacoes-cultura"
-                v-model="formulario.observacoes"
-                rows="2"
-                placeholder="Cuidados específicos, adubação recomendada..."
-              ></textarea>
+              <label for="temp-maxima">Temp. Máxima (°C) *</label>
+              <input
+                id="temp-maxima"
+                v-model.number="formulario.temperatura_maxima"
+                type="number"
+                step="0.1"
+                required
+              />
             </div>
+          </div>
 
-            <div class="modal-actions">
-              <button type="button" class="btn-secondary" :disabled="salvando" @click="fecharModal">
-                Cancelar
-              </button>
-              <button type="submit" class="btn-primary" :disabled="salvando">
-                <span v-if="salvando" class="spinner-sm"></span>
-                {{ salvando ? 'Salvando...' : 'Salvar Cultura' }}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <div class="form-group">
+            <label for="observacoes-cultura">Observações Técnicas</label>
+            <textarea
+              id="observacoes-cultura"
+              v-model="formulario.observacoes"
+              rows="2"
+              placeholder="Cuidados específicos, adubação recomendada..."
+            ></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" :disabled="salvando" @click="fecharModal">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-primary" :disabled="salvando">
+              <span v-if="salvando" class="spinner-sm"></span>
+              {{ salvando ? 'Salvando...' : 'Salvar Cultura' }}
+            </button>
+          </div>
+        </form>
+      </ModalFormulario>
 
       <!-- MODAL CONFIRMAÇÃO DE EXCLUSÃO -->
       <ModalConfirmacao
@@ -298,6 +283,9 @@
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
@@ -585,37 +573,24 @@ onMounted(carregarCulturas)
 
 <style scoped>
 .culturas-container {
-  padding: 1.5rem clamp(1rem, 2vw, 2rem);
-  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
 }
 
-.toolbar {
-  justify-content: flex-end;
-}
-
-.header-actions,
-.toolbar {
+.toolbar,
+.acoes-cabecalho {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
   align-items: center;
   gap: 0.75rem;
 }
 
-.subtitle,
 .kpi-detalhe,
 .categoria-nome,
 .sem-dados,
 .painel-vazio {
   color: var(--color-text-muted);
-}
-
-.subtitle {
-  margin-top: 0.25rem;
-  font-size: 0.95rem;
 }
 
 .toolbar .search-box-estoque {
@@ -860,7 +835,7 @@ onMounted(carregarCulturas)
   .toolbar {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 1fr auto;
   }
 
   .toolbar .search-box-estoque {
@@ -899,146 +874,11 @@ onMounted(carregarCulturas)
   }
 }
 
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background: var(--color-surface);
-  border-radius: 12px;
-  border: 1px dashed var(--color-border);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
 .btn-secondary {
   background-color: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
   padding: 0.625rem 1.25rem;
   border-radius: var(--radius-md, 8px);
   cursor: pointer;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--color-text-muted, #64748b);
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-}
-
-.btn-icon:hover {
-  color: var(--color-text, #1e293b);
-  background-color: var(--color-background, #f8fafc);
-}
-
-.btn-icon.btn-danger:hover {
-  color: var(--color-danger, #ef4444);
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-.spinner-sm {
-  width: 16px;
-  height: 16px;
-  border: 2px solid #ffffff;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 540px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted, #64748b);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text, #1e293b);
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-md, 8px);
-  font-size: 0.9rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 </style>

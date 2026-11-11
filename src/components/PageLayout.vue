@@ -1,5 +1,5 @@
 <template>
-  <Sidebar />
+  <AppSidebar />
   <main class="main-content">
     <DashHeader :title="title" :subtitle="subtitle">
       <template #actions>
@@ -7,15 +7,17 @@
       </template>
     </DashHeader>
 
-    <slot />
+    <div class="conteudo-pagina">
+      <slot />
+    </div>
 
-    <Footer />
+    <AppFooter />
   </main>
 </template>
 
 <script setup>
-import Sidebar from '@/components/Sidebar.vue'
-import Footer from '@/components/Footer.vue'
+import AppSidebar from '@/components/AppSidebar.vue'
+import AppFooter from '@/components/AppFooter.vue'
 import DashHeader from '@/components/DashHeader.vue'
 
 defineProps({
@@ -23,3 +25,16 @@ defineProps({
   subtitle: { type: String, default: '' },
 })
 </script>
+
+<style scoped>
+/* Corpo de todas as telas: mesmo recuo do cabeçalho e largura total */
+.conteudo-pagina {
+  padding: 1.5rem 40px 40px;
+}
+
+@media (max-width: 768px) {
+  .conteudo-pagina {
+    padding: 1rem 15px 30px;
+  }
+}
+</style>

@@ -1,11 +1,5 @@
 <template>
-  <Sidebar />
-
-  <main class="main-content">
-    <DashHeader
-      title="Configurações"
-      subtitle="Preferências do sistema, notificações e parâmetros operacionais."
-    />
+  <PageLayout title="Configurações" subtitle="Preferências do sistema, notificações e parâmetros operacionais.">
 
     <section class="config-layout">
       <nav class="config-nav">
@@ -33,7 +27,7 @@
                   · fuso {{ localizacao.fuso_horario }}
                 </p>
                 <p v-if="localizacao.atualizado_por_nome" class="local-autor">
-                  Definida por {{ localizacao.atualizado_por_nome }} em {{ formatarData(localizacao.atualizado_em) }}
+                  Definida por {{ localizacao.atualizado_por_nome }} em {{ formatarDataHora(localizacao.atualizado_em) }}
                 </p>
               </div>
               <div v-else-if="carregadoLocal">
@@ -164,20 +158,17 @@
       </div>
     </section>
 
-    <Footer />
-  </main>
+  </PageLayout>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import Sidebar from '@/components/Sidebar.vue';
-import Footer from "@/components/Footer.vue";
-import DashHeader from "@/components/DashHeader.vue";
+import PageLayout from '@/components/PageLayout.vue';
 import ToggleSwitch from "@/components/ToggleSwitch.vue";
 import ActionCard from "@/components/ActionCard.vue";
 import { useLocalizacao, rotuloCidade } from '@/composables/useLocalizacao';
-import { mensagemDeErro } from '@/services/apiHelpers';
+import { formatarDataHora, mensagemDeErro } from '@/services/apiHelpers';
 import { useToastStore } from '@/stores/toast';
 
 const route = useRoute();
@@ -295,10 +286,6 @@ function formatarCoordenada(valor, eixo) {
   return `${Math.abs(n).toFixed(4).replace('.', ',')}° ${hemisferio}`;
 }
 
-function formatarData(iso) {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '-' : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-}
 
 onMounted(() => carregar(true));
 onBeforeUnmount(() => clearTimeout(temporizador));
@@ -306,7 +293,7 @@ onBeforeUnmount(() => clearTimeout(temporizador));
 
 <style scoped>
 /* --- ESTILOS EXCLUSIVOS DA TELA DE CONFIGURAÇÃO --- */
-.config-layout { display: grid; grid-template-columns: 250px 1fr; gap: 30px; padding: 0 40px 40px; align-items: start; }
+.config-layout { display: grid; grid-template-columns: 250px 1fr; gap: 30px; align-items: start; }
 
 /* Menu de Navegação */
 .config-nav { display: flex; flex-direction: column; gap: 8px; }
@@ -354,8 +341,6 @@ onBeforeUnmount(() => clearTimeout(temporizador));
 .acoes-cidade { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
 .btn-salvar { background: var(--primary-green); color: #fff; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; }
 .btn-salvar:disabled { opacity: 0.6; cursor: wait; }
-.anim-spin { animation: girar 1s linear infinite; }
-@keyframes girar { to { transform: rotate(360deg); } }
 
 /* Ações de Dados */
 .dados-acoes { display: grid; grid-template-columns: 1fr; gap: 15px; }

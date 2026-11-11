@@ -23,10 +23,7 @@
       </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando && leiturasClima.length === 0" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando dados dos sensores climáticos...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando && leiturasClima.length === 0" mensagem="Carregando dados dos sensores climáticos..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -155,11 +152,12 @@
 </template>
 
 <script setup>
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { extrairLista, formatarDataHora, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -277,18 +275,6 @@ function parametrosForaDaFaixa(leitura) {
   return parametros.length ? `Fora da faixa: ${parametros.map((p) => NOMES_PARAMETRO[p] || p).join(', ')}` : ''
 }
 
-function formatarDataHora(dataHoraStr) {
-  if (!dataHoraStr) return '-'
-  const d = new Date(dataHoraStr)
-  if (Number.isNaN(d.getTime())) return dataHoraStr
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 onMounted(() => {
   carregarDados()
@@ -296,12 +282,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.sensores-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .sensores-container {
   margin-top: 1.5rem;
 }
@@ -352,10 +332,6 @@ onMounted(() => {
 
 .btn-atualizar:hover {
   background-color: var(--color-background, #f8fafc);
-}
-
-.anim-spin {
-  animation: spin 1s linear infinite;
 }
 
 .kpis-grid {
@@ -481,14 +457,6 @@ onMounted(() => {
   color: var(--color-text, #1e293b);
 }
 
-.font-mono {
-  font-family: monospace;
-}
-
-.font-destaque {
-  font-weight: 600;
-}
-
 .col-obs {
   max-width: 180px;
   overflow: hidden;
@@ -535,33 +503,5 @@ onMounted(() => {
   text-align: center;
   padding: 2.5rem !important;
   color: var(--color-text-muted, #64748b);
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

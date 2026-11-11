@@ -4,7 +4,7 @@
  *
  * Esta camada é carregada por último (ver main.css)
  *
- * Observação: Sidebar.vue, DashHeader.vue, DashboardView.vue e outros
+ * Observação: AppSidebar.vue, DashHeader.vue, DashboardView.vue e outros
  * componentes já possuem seus próprios @media internos (scoped) para o que
  * é específico deles. Este arquivo cobre as classes globais definidas em
  * 03-layout.css, 04-components.css e 05-modules.css.
@@ -15,7 +15,6 @@
    ========================================================================== */
 
 @media (max-width: 1200px) {
-  .perfil-layout,
   .config-layout {
     grid-template-columns: 1fr;
   }
@@ -25,29 +24,6 @@
    2. TABLET (<= 992px)
    Colunas duplas viram coluna única; grids de resumo reduzem densidade.
    ========================================================================== */
-
-@media (max-width: 992px) {
-  .inventory-split-view,
-  .split-view,
-  .estufas-split-view,
-  .lotes-split-view,
-  .layout-control-container {
-    grid-template-columns: 1fr;
-  }
-
-  .irrig-summary-bar,
-  .limite-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .estufa-resumo {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .agendamento-card {
-    grid-template-columns: 1fr;
-  }
-}
 
 /* ==========================================================================
    3. MOBILE / TABLET PEQUENO (<= 768px)
@@ -63,15 +39,9 @@
   }
 
   /* --- Cabeçalhos e barras superiores --- */
-  .dashboard-top-bar,
-  .page-top-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 10px var(--page-inline-padding-mobile) 0 !important;
-    gap: var(--space-4);
-  }
 
   .dash-header {
+    padding: 20px 15px 14px !important;
     align-items: flex-start;
     flex-direction: column;
     gap: var(--space-3);
@@ -83,54 +53,16 @@
     font-size: 1.5rem !important;
   }
 
-  .weather-time-container {
-    width: 100%;
-    justify-content: center;
-    margin: 10px 0 0 0;
-  }
-
   /* --- Containers e páginas internas --- */
-  .page-body,
-  .registration-container,
-  .registration-container-estoque,
-  .sensores-grid-container,
-  .historico-container,
-  .irrig-summary-bar,
-  .irrig-section,
-  .auditoria-container,
-  .perfil-layout,
-  .config-layout,
-  .layout-control-container,
-  .dashboard-content {
+  .historico-container {
     padding-left: var(--page-inline-padding-mobile) !important;
     padding-right: var(--page-inline-padding-mobile) !important;
   }
 
   /* --- Grids de formulário e de detalhes --- */
-  .grid-form,
-  .form-grid-layout,
-  .form-cols,
-  .info-grid,
-  .perfil-form-grid,
-  .detail-grid,
-  .detalhe-info-grid,
-  .lote-info-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-card {
-    padding: 25px;
-  }
 
   /* --- Barras de ação e busca --- */
-  .action-bar,
-  .action-bar-estoque,
-  .lotes-action-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
 
-  .search-box,
   .search-box-estoque {
     width: 100%;
   }
@@ -141,25 +73,11 @@
   .btn-primary,
   .btn-outline,
   .btn-delete,
-  .btn-danger,
-  .form-actions,
-  .form-actions-right,
-  .perfil-form-actions {
+  .btn-danger {
     width: 100%;
   }
 
-  .form-actions,
-  .form-actions-right,
-  .perfil-form-actions {
-    flex-direction: column;
-    justify-content: center;
-  }
-
   /* --- Casos específicos --- */
-  .sensores-status-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
 
   .footer-banner {
     height: 120px;
@@ -173,18 +91,14 @@
 
 @media (max-width: 1024px) {
   button,
-  .btn,
   .btn-primary,
   .btn-secondary,
   .btn-outline,
   .btn-delete,
   .btn-danger,
   .action-btn,
-  .pagination-btn,
   input[type="button"],
-  input[type="submit"],
-  .select-input,
-  .form-control {
+  input[type="submit"] {
     min-height: 44px;
     min-width: 44px;
     font-size: 1rem;
@@ -202,51 +116,16 @@
    Envolva a <table> com <div class="table-responsive-wrapper"> para ativar.
    ========================================================================== */
 
-.table-responsive-wrapper {
-  position: relative;
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  margin-bottom: var(--space-6, 1.5rem);
-  border-radius: var(--radius-md, 10px);
-  border: 1px solid var(--color-border, #cfd8dc);
-  background: var(--color-surface, #ffffff);
-}
-
 /* Sombra suave indicando que há conteúdo além da borda visível */
-.table-responsive-wrapper::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 24px;
-  background: linear-gradient(to right, rgba(255, 255, 255, 0), rgba(0, 0, 0, 0.08));
-  pointer-events: none;
-  opacity: 1;
-  transition: opacity 0.3s;
-}
 
 /* Em desktop normal não há necessidade do indicador de scroll */
-@media (min-width: 1025px) {
-  .table-responsive-wrapper::after {
-    display: none;
-  }
-}
 
 /* ==========================================================================
    6. TELAS ULTRA-ESTREITAS (< 380px)
    ========================================================================== */
 
 @media (max-width: 380px) {
-  .container,
-  .page-container,
-  .dashboard-container {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-  }
 
-  .btn,
   .btn-primary,
   .btn-outline {
     width: 100%;

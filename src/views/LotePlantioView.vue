@@ -33,10 +33,7 @@
       </div>
 
       <!-- CARREGAMENTO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando lotes...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Carregando lotes..." />
 
       <!-- ERRO DE CARREGAMENTO -->
       <ErroCarregamento
@@ -71,7 +68,7 @@
               <td>{{ lote.validade ? formatarData(lote.validade) : '-' }}</td>
               <td>
                 <span :class="['badge-status', `status-${lote.status}`]">
-                  {{ rotuloStatus(lote.status) }}
+                  {{ lote.status_nome || lote.status }}
                 </span>
               </td>
               <td>{{ lote.fornecedor || '-' }}</td>
@@ -99,186 +96,170 @@
       </div>
 
       <!-- ESTADO VAZIO -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">psychiatry</span>
-        <h3>Nenhum lote encontrado</h3>
-        <p>Cadastre um novo lote de plantio para vincular a uma mesa e cultura.</p>
+      <EstadoVazio v-else icone="psychiatry" titulo="Nenhum lote encontrado" texto="Cadastre um novo lote de plantio para vincular a uma mesa e cultura.">
         <button class="btn-novo-lote" @click="abrirModalNovoLote">Criar Primeiro Lote</button>
-      </div>
+      </EstadoVazio>
     </div>
 
     <!-- MODAL DE CADASTRO DE LOTE -->
-    <div v-if="exibirModal" class="modal-overlay" @click.self="fecharModal">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>Novo Lote de Plantio</h3>
-          <button class="btn-close" @click="fecharModal">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <ModalFormulario v-if="exibirModal" titulo="Novo Lote de Plantio" @fechar="fecharModal">
+
+      <form @submit.prevent="salvarLote">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="cultura-select">Cultura *</label>
+            <select id="cultura-select" v-model="novoLote.cultura_id" required>
+              <option value="" disabled>Selecione uma cultura</option>
+              <option v-for="c in culturas" :key="c.id" :value="c.id" :disabled="!culturaConfigurada(c)">
+                {{ c.nome_cultura }}{{ culturaConfigurada(c) ? '' : ' (cadastro incompleto)' }}
+              </option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="mesa-select">Mesa *</label>
+            <select id="mesa-select" v-model="novoLote.mesa_id" required>
+              <option value="" disabled>Selecione uma mesa</option>
+              <option v-for="m in mesasDeEstufa" :key="m.id" :value="m.id" :disabled="m.status_mesa !== 'livre'">
+                {{ m.identificacao }} · {{ m.estufa_nome }} · {{ rotuloMesa(m) }}
+              </option>
+            </select>
+          </div>
         </div>
 
-        <form @submit.prevent="salvarLote">
-          <div class="form-row">
-            <div class="form-group">
-              <label for="cultura-select">Cultura *</label>
-              <select id="cultura-select" v-model="novoLote.cultura_id" required>
-                <option value="" disabled>Selecione uma cultura</option>
-                <option v-for="c in culturas" :key="c.id" :value="c.id" :disabled="!culturaConfigurada(c)">
-                  {{ c.nome_cultura }}{{ culturaConfigurada(c) ? '' : ' (cadastro incompleto)' }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="mesa-select">Mesa *</label>
-              <select id="mesa-select" v-model="novoLote.mesa_id" required>
-                <option value="" disabled>Selecione uma mesa</option>
-                <option v-for="m in mesasDeEstufa" :key="m.id" :value="m.id" :disabled="m.status_mesa !== 'livre'">
-                  {{ m.identificacao }} · {{ m.estufa_nome }} · {{ rotuloMesa(m) }}
-                </option>
-              </select>
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="data-plantio">Data de Plantio *</label>
+            <input id="data-plantio" v-model="novoLote.data_plantio" type="date" required />
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="data-plantio">Data de Plantio *</label>
-              <input id="data-plantio" v-model="novoLote.data_plantio" type="date" required />
-            </div>
-
-            <div class="form-group">
-              <label for="quantidade-lote">Plantas na mesa *</label>
-              <input
-                id="quantidade-lote"
-                v-model.number="novoLote.quantidade"
-                type="number"
-                step="1"
-                min="1"
-                :max="capacidadeMesaSelecionada || undefined"
-                required
-              />
-              <small v-if="capacidadeMesaSelecionada" class="dica-campo">
-                A mesa comporta até {{ capacidadeMesaSelecionada }}.
-              </small>
-            </div>
-
+          <div class="form-group">
+            <label for="quantidade-lote">Plantas na mesa *</label>
+            <input
+              id="quantidade-lote"
+              v-model.number="novoLote.quantidade"
+              type="number"
+              step="1"
+              min="1"
+              :max="capacidadeMesaSelecionada || undefined"
+              required
+            />
+            <small v-if="capacidadeMesaSelecionada" class="dica-campo">
+              A mesa comporta até {{ capacidadeMesaSelecionada }}.
+            </small>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="origem-lote">Origem das mudas</label>
-              <select id="origem-lote" v-model="novoLote.lote_origem">
-                <option :value="null">Compradas ou de fora do sistema</option>
-                <option v-for="l in mudasDisponiveis" :key="l.id" :value="l.id">
-                  Estoque #{{ l.id }} · {{ obterIdentificacaoMesa(l.mesa_id) }} ·
-                  {{ formatarQuantidade(l.quantidade) }} {{ rotuloUnidade(l.unidade) }}
-                </option>
-              </select>
-              <small v-if="novoLote.cultura_id && mudasDisponiveis.length === 0" class="dica-campo">
-                Não há mudas desta cultura em estoque.
-              </small>
-            </div>
+        </div>
 
-            <div v-if="loteOrigem" class="form-group">
-              <label for="origem-quantidade">Retiradas do estoque ({{ rotuloUnidade(loteOrigem.unidade) }}) *</label>
-              <input
-                id="origem-quantidade"
-                v-model.number="novoLote.quantidade_origem"
-                type="number"
-                step="1"
-                min="1"
-                :max="loteOrigem.quantidade"
-                required
-              />
-              <small class="dica-campo">Sai do estoque de mudas ao cadastrar.</small>
-            </div>
-            <div v-else class="form-group">
-              <label for="fornecedor-lote">Fornecedor</label>
-              <input
-                id="fornecedor-lote"
-                v-model="novoLote.fornecedor"
-                type="text"
-                placeholder="Ex.: Hidro Mudas"
-              />
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="origem-lote">Origem das mudas</label>
+            <select id="origem-lote" v-model="novoLote.lote_origem">
+              <option :value="null">Compradas ou de fora do sistema</option>
+              <option v-for="l in mudasDisponiveis" :key="l.id" :value="l.id">
+                Estoque #{{ l.id }} · {{ obterIdentificacaoMesa(l.mesa_id) }} ·
+                {{ formatarQuantidade(l.quantidade) }} {{ rotuloUnidade(l.unidade) }}
+              </option>
+            </select>
+            <small v-if="novoLote.cultura_id && mudasDisponiveis.length === 0" class="dica-campo">
+              Não há mudas desta cultura em estoque.
+            </small>
           </div>
 
-          <p class="aviso-form">
-            O lote entra como <strong>Em cultivo</strong> e ocupa a mesa até ser colhido ou ter a perda registrada.
-          </p>
-
-          <div class="modal-actions">
-            <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModal">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-salvar" :disabled="salvando">
-              <span v-if="salvando" class="spinner-sm"></span>
-              {{ salvando ? 'Cadastrando...' : 'Cadastrar Lote' }}
-            </button>
+          <div v-if="loteOrigem" class="form-group">
+            <label for="origem-quantidade">Retiradas do estoque ({{ rotuloUnidade(loteOrigem.unidade) }}) *</label>
+            <input
+              id="origem-quantidade"
+              v-model.number="novoLote.quantidade_origem"
+              type="number"
+              step="1"
+              min="1"
+              :max="loteOrigem.quantidade"
+              required
+            />
+            <small class="dica-campo">Sai do estoque de mudas ao cadastrar.</small>
           </div>
-        </form>
-      </div>
-    </div>
+          <div v-else class="form-group">
+            <label for="fornecedor-lote">Fornecedor</label>
+            <input
+              id="fornecedor-lote"
+              v-model="novoLote.fornecedor"
+              type="text"
+              placeholder="Ex.: Hidro Mudas"
+            />
+          </div>
+        </div>
+
+        <p class="aviso-form">
+          O lote entra como <strong>Em cultivo</strong> e ocupa a mesa até ser colhido ou ter a perda registrada.
+        </p>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModal">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-salvar" :disabled="salvando">
+            <span v-if="salvando" class="spinner-sm"></span>
+            {{ salvando ? 'Cadastrando...' : 'Cadastrar Lote' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
 
     <!-- MODAL DE REGISTRO DE PERDA -->
-    <div v-if="lotePerda" class="modal-overlay" @click.self="fecharModalPerda">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>Registrar perda · Lote #{{ lotePerda.id }}</h3>
-          <button class="btn-close" @click="fecharModalPerda">
-            <span class="material-symbols-outlined">close</span>
+    <ModalFormulario v-if="lotePerda" :titulo="`Registrar perda · Lote #${lotePerda.id}`" @fechar="fecharModalPerda">
+      <form @submit.prevent="salvarPerda">
+        <p class="aviso-form">
+          {{ obterNomeCultura(lotePerda.cultura_id) }} na mesa {{ obterIdentificacaoMesa(lotePerda.mesa_id) }}:
+          saldo de {{ formatarQuantidade(lotePerda.quantidade) }} {{ rotuloUnidade(lotePerda.unidade) }}. Perder tudo encerra o lote e libera a mesa.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="perda-quantidade">Quantidade perdida *</label>
+            <input
+              id="perda-quantidade"
+              v-model.number="formPerda.quantidade"
+              type="number"
+              step="1"
+              min="1"
+              :max="lotePerda.quantidade"
+              required
+            />
+          </div>
+          <div class="form-group">
+            <label for="perda-motivo">Motivo *</label>
+            <input
+              id="perda-motivo"
+              v-model="formPerda.motivo"
+              type="text"
+              required
+              placeholder="Ex.: pulgão, podridão, queima por calor"
+            />
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModalPerda">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-salvar btn-perigo" :disabled="salvando">
+            {{ salvando ? 'Registrando...' : 'Registrar perda' }}
           </button>
         </div>
-        <form @submit.prevent="salvarPerda">
-          <p class="aviso-form">
-            {{ obterNomeCultura(lotePerda.cultura_id) }} na mesa {{ obterIdentificacaoMesa(lotePerda.mesa_id) }}:
-            saldo de {{ formatarQuantidade(lotePerda.quantidade) }} {{ rotuloUnidade(lotePerda.unidade) }}. Perder tudo encerra o lote e libera a mesa.
-          </p>
-          <div class="form-row">
-            <div class="form-group">
-              <label for="perda-quantidade">Quantidade perdida *</label>
-              <input
-                id="perda-quantidade"
-                v-model.number="formPerda.quantidade"
-                type="number"
-                step="1"
-                min="1"
-                :max="lotePerda.quantidade"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label for="perda-motivo">Motivo *</label>
-              <input
-                id="perda-motivo"
-                v-model="formPerda.motivo"
-                type="text"
-                required
-                placeholder="Ex.: pulgão, podridão, queima por calor"
-              />
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-cancelar" :disabled="salvando" @click="fecharModalPerda">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-salvar btn-perigo" :disabled="salvando">
-              {{ salvando ? 'Registrando...' : 'Registrar perda' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      </form>
+    </ModalFormulario>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, formatarQuantidade, mensagemDeErro } from '@/services/apiHelpers'
+import { extrairLista, formatarData, formatarQuantidade, mensagemDeErro } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import verificarPermissao from '@/assets/JS/verificarPermissao'
@@ -415,23 +396,7 @@ function obterIdentificacaoMesa(mesaId) {
   return mesa ? mesa.identificacao : `Mesa #${mesaId}`
 }
 
-function rotuloStatus(status) {
-  const mapa = {
-    AT: 'Em cultivo',
-    ES: 'Em Estoque',
-    BX: 'Estoque Baixo',
-    DI: 'Disponível',
-    CO: 'Colhido',
-    PE: 'Perdido'
-  }
-  return mapa[status] || status
-}
 
-function formatarData(dataStr) {
-  if (!dataStr) return '-'
-  const [ano, mes, dia] = dataStr.split('-')
-  return `${dia}/${mes}/${ano}`
-}
 
 function abrirModalNovoLote() {
   novoLote.value = formularioPadrao()
@@ -523,10 +488,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.lote-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
+/* Nas linhas da tabela a lixeira fica sempre vermelha (a ação de perda já é laranja) */
+.btn-icon.btn-danger {
+  color: var(--color-danger);
 }
 
 .lote-container {
@@ -630,15 +594,6 @@ onMounted(async () => {
   border-bottom: none;
 }
 
-.font-mono {
-  font-family: monospace;
-  color: var(--color-text-muted);
-}
-
-.font-destaque {
-  font-weight: 600;
-}
-
 .badge-status {
   display: inline-block;
   padding: 0.25rem 0.6rem;
@@ -678,27 +633,9 @@ onMounted(async () => {
   color: #d32f2f;
 }
 
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-}
-
 .acoes {
   display: flex;
   gap: 0.25rem;
-}
-
-.btn-icon.btn-alerta {
-  color: #b45309;
-}
-
-.btn-icon.btn-alerta:hover {
-  background-color: rgba(180, 83, 9, 0.08);
 }
 
 .aviso-form {
@@ -716,128 +653,6 @@ onMounted(async () => {
 
 .btn-salvar.btn-perigo {
   background-color: #b91c1c;
-}
-
-.btn-icon.btn-danger {
-  color: var(--color-danger, #d32f2f);
-}
-
-.btn-icon.btn-danger:hover {
-  background-color: rgba(211, 47, 47, 0.08);
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  border: 1px dashed var(--color-border);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-.spinner-sm {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #ffffff;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-card {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 540px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-.form-group input,
-.form-group select {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font-size: 0.9rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 
 .btn-cancelar {

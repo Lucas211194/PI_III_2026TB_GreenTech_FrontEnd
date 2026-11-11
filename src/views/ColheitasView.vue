@@ -1,22 +1,16 @@
 <template>
-  <PageLayout>
+  <PageLayout title="Registro de Colheitas" subtitle="Histórico de colheitas e controle de perdas da produção">
+    <template #header-actions>
+      <button class="btn-primary" @click="abrirModalNovaColheita()">
+        <span class="material-symbols-outlined">add</span>
+        Registrar Colheita
+      </button>
+    </template>
+
     <div class="colheitas-container">
-      <div class="header-actions">
-        <div>
-          <h2>Registro de Colheitas</h2>
-          <p class="subtitle">Histórico de colheitas e controle de perdas da produção</p>
-        </div>
-        <button class="btn-primary" @click="abrirModalNovaColheita()">
-          <span class="material-symbols-outlined">add</span>
-          Registrar Colheita
-        </button>
-      </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando registros de colheita...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Carregando registros de colheita..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -64,82 +58,71 @@
       </div>
 
       <!-- VAZIO -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">agriculture</span>
-        <h3>Nenhuma colheita registrada</h3>
-        <p>Quando os lotes ativos atingirem o ciclo de maturação, registre a colheita aqui.</p>
+      <EstadoVazio v-else icone="agriculture" titulo="Nenhuma colheita registrada" texto="Quando os lotes ativos atingirem o ciclo de maturação, registre a colheita aqui.">
         <button class="btn-primary" @click="abrirModalNovaColheita()">Registrar Primeira Colheita</button>
-      </div>
+      </EstadoVazio>
 
       <!-- MODAL FORMULÁRIO DE COLHEITA -->
-      <div v-if="exibirModal" class="modal-overlay" @click.self="fecharModal">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h3>Registrar Nova Colheita</h3>
-            <button class="btn-close" @click="fecharModal">
-              <span class="material-symbols-outlined">close</span>
-            </button>
+      <ModalFormulario v-if="exibirModal" titulo="Registrar Nova Colheita" @fechar="fecharModal">
+
+        <form @submit.prevent="solicitarConfirmacaoColheita">
+          <div class="form-group">
+            <label for="lote-colheita">Lote a ser Colhido *</label>
+            <select id="lote-colheita" v-model="formulario.lote_id" required>
+              <option value="" disabled>Selecione um lote em cultivo</option>
+              <option v-for="l in lotesDisponiveis" :key="l.id" :value="l.id">
+                {{ obterIdentificacaoMesa(l.mesa_id) }} · {{ obterNomeCulturaPorLote(l.id) }} ·
+                {{ percentualCiclo(l) }}% do ciclo · {{ formatarQuantidade(l.quantidade) }} plantas
+              </option>
+            </select>
           </div>
 
-          <form @submit.prevent="solicitarConfirmacaoColheita">
+          <div class="form-row">
             <div class="form-group">
-              <label for="lote-colheita">Lote a ser Colhido *</label>
-              <select id="lote-colheita" v-model="formulario.lote_id" required>
-                <option value="" disabled>Selecione um lote em cultivo</option>
-                <option v-for="l in lotesDisponiveis" :key="l.id" :value="l.id">
-                  {{ obterIdentificacaoMesa(l.mesa_id) }} · {{ obterNomeCulturaPorLote(l.id) }} ·
-                  {{ percentualCiclo(l) }}% do ciclo · {{ formatarQuantidade(l.quantidade) }} plantas
-                </option>
-              </select>
+              <label for="qtd-colhida">Quantidade Colhida *</label>
+              <input
+                id="qtd-colhida"
+                v-model.number="formulario.quantidade_colhida"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+              />
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="qtd-colhida">Quantidade Colhida *</label>
-                <input
-                  id="qtd-colhida"
-                  v-model.number="formulario.quantidade_colhida"
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="qtd-perda">Quantidade de Perda</label>
-                <input
-                  id="qtd-perda"
-                  v-model.number="formulario.quantidade_perda"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                />
-              </div>
+            <div class="form-group">
+              <label for="qtd-perda">Quantidade de Perda</label>
+              <input
+                id="qtd-perda"
+                v-model.number="formulario.quantidade_perda"
+                type="number"
+                step="0.01"
+                min="0"
+              />
             </div>
+          </div>
 
-            <div class="aviso-irreversivel">
-              <span class="material-symbols-outlined">info</span>
-              <p>
-                A colheita encerra o lote e libera a mesa.
-                <template v-if="saldoRestante > 0 && formulario.quantidade_colhida > 0">
-                  As {{ formatarQuantidade(saldoRestante) }} {{ obterUnidadeLote(loteSelecionado.id) }} não informadas
-                  serão baixadas como perda.
-                </template>
-              </p>
-            </div>
+          <div class="aviso-irreversivel">
+            <span class="material-symbols-outlined">info</span>
+            <p>
+              A colheita encerra o lote e libera a mesa.
+              <template v-if="saldoRestante > 0 && formulario.quantidade_colhida > 0">
+                As {{ formatarQuantidade(saldoRestante) }} {{ obterUnidadeLote(loteSelecionado.id) }} não informadas
+                serão baixadas como perda.
+              </template>
+            </p>
+          </div>
 
-            <div class="modal-actions">
-              <button type="button" class="btn-secondary" :disabled="salvando" @click="fecharModal">
-                Cancelar
-              </button>
-              <button type="submit" class="btn-primary" :disabled="salvando">
-                Avançar
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <div class="modal-actions">
+            <button type="button" class="btn-secondary" :disabled="salvando" @click="fecharModal">
+              Cancelar
+            </button>
+            <button type="submit" class="btn-primary" :disabled="salvando">
+              Avançar
+            </button>
+          </div>
+        </form>
+      </ModalFormulario>
 
       <!-- MODAL DE CONFIRMAÇÃO IRREVERSÍVEL (C08) -->
       <ModalConfirmacao
@@ -157,6 +140,9 @@
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import PageLayout from '@/components/PageLayout.vue'
@@ -167,7 +153,7 @@ import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
 import funcionarioService from '@/services/funcionarioService'
 import estruturaService from '@/services/estruturaService'
-import { formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -301,11 +287,6 @@ function classeTaxa(taxa) {
   return 'taxa-baixa'
 }
 
-function formatarData(dataStr) {
-  if (!dataStr) return '-'
-  const [ano, mes, dia] = dataStr.split('-')
-  return `${dia}/${mes}/${ano}`
-}
 
 function abrirModalNovaColheita(loteId = '') {
   formulario.value = {
@@ -370,25 +351,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.colheitas-container {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
-.header-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-}
-
-.subtitle {
-  color: var(--color-text-muted, #64748b);
-  margin-top: 0.25rem;
-  font-size: 0.95rem;
-}
-
 .tabela-card {
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
@@ -419,14 +381,6 @@ onMounted(async () => {
   padding: 1rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   color: var(--color-text, #1e293b);
-}
-
-.font-mono {
-  font-family: monospace;
-}
-
-.font-destaque {
-  font-weight: 600;
 }
 
 .texto-perda {
@@ -483,104 +437,6 @@ onMounted(async () => {
   cursor: pointer;
 }
 
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-text-muted, #64748b);
-  margin-bottom: 1rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 520px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted, #64748b);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text, #1e293b);
-}
-
-.form-group input,
-.form-group select {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-md, 8px);
-  font-size: 0.9rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
 .aviso-irreversivel {
   display: flex;
   align-items: flex-start;
@@ -602,12 +458,5 @@ onMounted(async () => {
   font-size: 0.8rem;
   color: #991b1b;
   line-height: 1.4;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 </style>

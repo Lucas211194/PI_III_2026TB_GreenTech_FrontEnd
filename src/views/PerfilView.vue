@@ -3,10 +3,7 @@
   <div class="perfil-view">
     <div class="perfil-container">
       <!-- CARREGANDO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando dados do perfil...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Carregando dados do perfil..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -136,78 +133,68 @@
     </div>
 
     <!-- MODAL DE ALTERAÇÃO DE SENHA -->
-    <div
-      v-if="modalSenhaAberto"
-      class="modal-overlay"
-      @click.self="modalSenhaAberto = false"
-    >
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>Alterar Minha Senha</h3>
-          <button class="btn-close" @click="modalSenhaAberto = false">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <ModalFormulario v-if="modalSenhaAberto" titulo="Alterar Minha Senha" estreito @fechar="modalSenhaAberto = false">
+
+      <form @submit.prevent="submeterAlteracaoSenha">
+        <div class="form-group">
+          <label for="senha-atual">Senha Atual *</label>
+          <input
+            id="senha-atual"
+            v-model="formSenha.senha_atual"
+            type="password"
+            required
+            autocomplete="current-password"
+          />
         </div>
 
-        <form @submit.prevent="submeterAlteracaoSenha">
-          <div class="form-group">
-            <label for="senha-atual">Senha Atual *</label>
-            <input
-              id="senha-atual"
-              v-model="formSenha.senha_atual"
-              type="password"
-              required
-              autocomplete="current-password"
-            />
-          </div>
+        <div class="form-group">
+          <label for="nova-senha">Nova Senha *</label>
+          <input
+            id="nova-senha"
+            v-model="formSenha.nova_senha"
+            type="password"
+            required
+            autocomplete="new-password"
+          />
+        </div>
 
-          <div class="form-group">
-            <label for="nova-senha">Nova Senha *</label>
-            <input
-              id="nova-senha"
-              v-model="formSenha.nova_senha"
-              type="password"
-              required
-              autocomplete="new-password"
-            />
-          </div>
+        <div class="form-group">
+          <label for="conf-senha">Confirmar Nova Senha *</label>
+          <input
+            id="conf-senha"
+            v-model="formSenha.confirmar_senha"
+            type="password"
+            required
+            autocomplete="new-password"
+          />
+        </div>
 
-          <div class="form-group">
-            <label for="conf-senha">Confirmar Nova Senha *</label>
-            <input
-              id="conf-senha"
-              v-model="formSenha.confirmar_senha"
-              type="password"
-              required
-              autocomplete="new-password"
-            />
-          </div>
-
-          <div class="modal-actions">
-            <button
-              type="button"
-              class="btn-secundario"
-              :disabled="salvandoSenha"
-              @click="modalSenhaAberto = false"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              class="btn-primario"
-              :disabled="salvandoSenha"
-            >
-              {{ salvandoSenha ? 'Alterando...' : 'Atualizar Senha' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="modal-actions">
+          <button
+            type="button"
+            class="btn-secundario"
+            :disabled="salvandoSenha"
+            @click="modalSenhaAberto = false"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="btn-primario"
+            :disabled="salvandoSenha"
+          >
+            {{ salvandoSenha ? 'Alterando...' : 'Atualizar Senha' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
@@ -355,12 +342,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.perfil-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .perfil-container {
   margin-top: 1.5rem;
 }
@@ -585,76 +566,5 @@ onMounted(() => {
 .btn-secundario:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.font-mono {
-  font-family: monospace;
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1100;
-  padding: 1rem;
-}
-
-.modal-card {
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 440px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted, #64748b);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

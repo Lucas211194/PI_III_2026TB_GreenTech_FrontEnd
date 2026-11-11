@@ -29,10 +29,7 @@
       </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando && alertas.length === 0" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando alertas...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando && alertas.length === 0" mensagem="Carregando alertas..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -60,7 +57,7 @@
               <h4 class="alerta-titulo">
                 {{ alerta.mesaIdentificacao }} &middot; {{ alerta.parametroNome }}
               </h4>
-              <span class="alerta-hora font-mono">{{ formatarDataHora(alerta.dataHora) }}</span>
+              <span class="alerta-hora font-mono">{{ formatarDataHora(alerta.dataHora, { ano: false }) }}</span>
             </div>
 
             <p class="alerta-mensagem">{{ alerta.mensagem }}</p>
@@ -98,22 +95,20 @@
       </div>
 
       <!-- VAZIO: NENHUM ALERTA -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">check_circle</span>
-        <h3>Tudo sob controle!</h3>
-        <p>Nenhuma anomalia climática detectada nas mesas monitoradas no momento.</p>
-      </div>
+      <EstadoVazio v-else icone="check_circle" titulo="Tudo sob controle!" texto="Nenhuma anomalia climática detectada nas mesas monitoradas no momento." />
     </div>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
+import { extrairLista, formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -167,17 +162,6 @@ const alertasFiltrados = computed(() => {
   })
 })
 
-function formatarDataHora(dataHoraStr) {
-  if (!dataHoraStr) return '-'
-  const d = new Date(dataHoraStr)
-  if (Number.isNaN(d.getTime())) return dataHoraStr
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 onMounted(() => {
   carregarDados()
@@ -197,12 +181,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.alertas-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .alertas-container {
   margin-top: 1.5rem;
 }
@@ -256,10 +234,6 @@ onUnmounted(() => {
 
 .btn-atualizar:hover {
   background-color: var(--color-background, #f8fafc);
-}
-
-.anim-spin {
-  animation: spin 1s linear infinite;
 }
 
 .lista-alertas {
@@ -413,51 +387,6 @@ onUnmounted(() => {
   .btn-resolver {
     width: 100%;
     justify-content: center;
-  }
-}
-
-.font-mono {
-  font-family: monospace;
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background-color: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-primary, #16a34a);
-  margin-bottom: 0.75rem;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0.75rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
   }
 }
 </style>

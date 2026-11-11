@@ -37,10 +37,7 @@
       </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando registros de auditoria...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando" mensagem="Carregando registros de auditoria..." />
 
       <!-- PERMISSÃO NEGADA (403) -->
       <div v-else-if="semPermissao" class="alerta-permissao" role="alert">
@@ -75,7 +72,7 @@
             </thead>
             <tbody>
               <tr v-for="log in itensPaginados" :key="log.id_log || log.id">
-                <td class="font-mono">{{ formatarDataHora(log.data_hora) }}</td>
+                <td class="font-mono">{{ formatarDataHora(log.data_hora, { segundos: true }) }}</td>
                 <td class="font-destaque">{{ log.usuario || '-' }}</td>
                 <td>
                   <span :class="['badge-acao', `acao-${String(log.acao || '').toLowerCase()}`]">
@@ -115,24 +112,20 @@
       </div>
 
       <!-- ESTADO VAZIO -->
-      <div v-else class="empty-state">
-        <span class="material-symbols-outlined empty-icon">history_edu</span>
-        <h3>Nenhum registro de auditoria encontrado</h3>
-        <p>
-          O histórico registra ações administrativas realizadas através do painel de controle do servidor.
-        </p>
-      </div>
+      <EstadoVazio v-else icone="history_edu" titulo="Nenhum registro de auditoria encontrado" texto="O histórico registra ações administrativas realizadas através do painel de controle do servidor." />
     </div>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import apiClient from '@/services/api'
-import { extrairLista, mensagemDeErro } from '@/services/apiHelpers'
+import { extrairLista, formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -210,19 +203,6 @@ const itensPaginados = computed(() => {
   return logsFiltrados.value.slice(inicio, inicio + itensPorPagina)
 })
 
-function formatarDataHora(dataHoraStr) {
-  if (!dataHoraStr) return '-'
-  const d = new Date(dataHoraStr)
-  if (Number.isNaN(d.getTime())) return dataHoraStr
-  return d.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-}
 
 onMounted(() => {
   carregarHistorico()
@@ -230,12 +210,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.historico-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .historico-container {
   margin-top: 1.5rem;
 }
@@ -306,10 +280,6 @@ onMounted(() => {
   background-color: var(--color-background, #f8fafc);
 }
 
-.anim-spin {
-  animation: spin 1s linear infinite;
-}
-
 .tabela-card {
   background: var(--color-surface, #ffffff);
   border: 1px solid var(--color-border, #e2e8f0);
@@ -340,14 +310,6 @@ onMounted(() => {
   padding: 0.85rem 1rem;
   border-bottom: 1px solid var(--color-border, #e2e8f0);
   color: var(--color-text, #1e293b);
-}
-
-.font-mono {
-  font-family: monospace;
-}
-
-.font-destaque {
-  font-weight: 600;
 }
 
 .col-detalhes {
@@ -436,40 +398,5 @@ onMounted(() => {
   font-size: 0.75rem;
   color: var(--color-text-muted, #94a3b8);
   margin-top: 0.5rem;
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background-color: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-  color: var(--color-text-muted, #64748b);
-}
-
-.empty-icon {
-  font-size: 48px;
-  margin-bottom: 0.75rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0.75rem;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

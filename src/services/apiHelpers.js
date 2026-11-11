@@ -111,6 +111,28 @@ export function diasAte(iso) {
   return Math.round((data - hoje) / 86400000)
 }
 
+/** Data no formato brasileiro (dd/mm/aaaa); aceita "AAAA-MM-DD" ou data/hora ISO. */
+export function formatarData(valor) {
+  if (!valor) return '-'
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(String(valor)) ? dataLocal(valor) : new Date(valor)
+  return Number.isNaN(data.getTime()) ? String(valor) : data.toLocaleDateString('pt-BR')
+}
+
+/** Data e hora (dd/mm/aaaa, hh:mm); ano: false omite o ano, segundos: true inclui os segundos. */
+export function formatarDataHora(valor, { ano = true, segundos = false } = {}) {
+  if (!valor) return '-'
+  const data = new Date(valor)
+  if (Number.isNaN(data.getTime())) return String(valor)
+  return data.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    ...(ano && { year: 'numeric' }),
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(segundos && { second: '2-digit' }),
+  })
+}
+
 export function formatarDataCurta(iso) {
   const data = dataLocal(iso)
   return data ? data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'

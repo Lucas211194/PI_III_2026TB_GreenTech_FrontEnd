@@ -28,11 +28,9 @@
             </p>
           </div>
 
-          <div v-else class="loading-state">
-            <div class="spinner"></div>
-            <p>Processando documento via OCR...</p>
+          <EstadoCarregamento v-else mensagem="Processando documento via OCR...">
             <span class="subtext">Identificando produtos e valores</span>
-          </div>
+          </EstadoCarregamento>
         </div>
       </section>
 
@@ -168,6 +166,7 @@
 </template>
 
 <script setup>
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import apiClient from '@/services/api'
@@ -349,10 +348,9 @@ async function confirmarGravacaoEstoque() {
 </script>
 
 <style scoped>
-.ocr-view {
-  padding: 1.5rem;
-  max-width: 1200px;
-  margin: 0 auto;
+/* Remover item detectado: ícone sempre vermelho */
+.btn-icon {
+  color: var(--color-danger);
 }
 
 .upload-section {
@@ -390,39 +388,6 @@ async function confirmarGravacaoEstoque() {
   font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-top: 0.5rem;
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.spinner-sm {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #fff;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  vertical-align: middle;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .card-metadados {
@@ -500,17 +465,6 @@ async function confirmarGravacaoEstoque() {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  color: var(--color-danger, #d32f2f);
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .empty-state {

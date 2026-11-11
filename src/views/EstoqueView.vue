@@ -39,10 +39,7 @@
       </div>
 
       <!-- CARREGANDO -->
-      <div v-if="carregando && !dadosCarregados" class="loading-state">
-        <div class="spinner"></div>
-        <p>Carregando dados do estoque...</p>
-      </div>
+      <EstadoCarregamento v-if="carregando && !dadosCarregados" mensagem="Carregando dados do estoque..." />
 
       <!-- ERRO -->
       <ErroCarregamento
@@ -111,9 +108,7 @@
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state">
-            <p>Nenhum lote corresponde aos filtros informados.</p>
-          </div>
+          <EstadoVazio v-else compacto texto="Nenhum lote corresponde aos filtros informados." />
         </section>
 
         <!-- ========================================== -->
@@ -202,9 +197,7 @@
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state">
-            <p>Nenhum insumo encontrado no cadastro.</p>
-          </div>
+          <EstadoVazio v-else compacto texto="Nenhum insumo encontrado no cadastro." />
         </section>
 
         <!-- ========================================== -->
@@ -247,9 +240,7 @@
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state">
-            <p>Nenhuma movimentação de lote registrada até o momento.</p>
-          </div>
+          <EstadoVazio v-else compacto texto="Nenhuma movimentação de lote registrada até o momento." />
         </section>
 
         <!-- ========================================== -->
@@ -292,9 +283,7 @@
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state">
-            <p>Nenhuma movimentação de insumo registrada até o momento.</p>
-          </div>
+          <EstadoVazio v-else compacto texto="Nenhuma movimentação de insumo registrada até o momento." />
         </section>
       </div>
     </div>
@@ -302,238 +291,217 @@
     <!-- ========================================== -->
     <!-- MODAL: CADASTRO / EDIÇÃO DE INSUMO         -->
     <!-- ========================================== -->
-    <div v-if="modalInsumoAberto" class="modal-overlay" @click.self="modalInsumoAberto = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>{{ modoEdicaoInsumo ? 'Editar Insumo' : 'Novo Insumo' }}</h3>
-          <button class="btn-close" @click="modalInsumoAberto = false">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <ModalFormulario v-if="modalInsumoAberto" :titulo="modoEdicaoInsumo ? 'Editar Insumo' : 'Novo Insumo'" @fechar="modalInsumoAberto = false">
+
+      <form @submit.prevent="salvarInsumo">
+        <div class="form-group">
+          <label for="ins-nome">Nome do Insumo *</label>
+          <input id="ins-nome" v-model="formInsumo.nome" type="text" required placeholder="Ex.: Fertilizante NPK 10-10-10" />
         </div>
 
-        <form @submit.prevent="salvarInsumo">
+        <div class="form-row">
           <div class="form-group">
-            <label for="ins-nome">Nome do Insumo *</label>
-            <input id="ins-nome" v-model="formInsumo.nome" type="text" required placeholder="Ex.: Fertilizante NPK 10-10-10" />
+            <label for="ins-tipo">Tipo de Insumo *</label>
+            <select id="ins-tipo" v-model="formInsumo.tipo" required>
+              <option value="FE">Fertilizante (FE)</option>
+              <option value="DF">Defensivo (DF)</option>
+              <option value="SB">Substrato (SB)</option>
+              <option value="OU">Outro (OU)</option>
+            </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="ins-tipo">Tipo de Insumo *</label>
-              <select id="ins-tipo" v-model="formInsumo.tipo" required>
-                <option value="FE">Fertilizante (FE)</option>
-                <option value="DF">Defensivo (DF)</option>
-                <option value="SB">Substrato (SB)</option>
-                <option value="OU">Outro (OU)</option>
-              </select>
-            </div>
+          <div class="form-group">
+            <label for="ins-unidade">Unidade *</label>
+            <input id="ins-unidade" v-model="formInsumo.unidade" type="text" required placeholder="KG, L, UN..." />
+          </div>
+        </div>
 
-            <div class="form-group">
-              <label for="ins-unidade">Unidade *</label>
-              <input id="ins-unidade" v-model="formInsumo.unidade" type="text" required placeholder="KG, L, UN..." />
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ins-minimo">Estoque Mínimo *</label>
+            <input
+              id="ins-minimo"
+              v-model.number="formInsumo.estoque_minimo"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+            />
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="ins-minimo">Estoque Mínimo *</label>
-              <input
-                id="ins-minimo"
-                v-model.number="formInsumo.estoque_minimo"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-              />
-            </div>
+          <div v-if="!modoEdicaoInsumo" class="form-group">
+            <label for="ins-inicial">Quantidade Inicial (Opcional)</label>
+            <input
+              id="ins-inicial"
+              v-model.number="formInsumo.quantidade_inicial"
+              type="number"
+              step="0.01"
+              min="0"
+              placeholder="Gera entrada automática"
+            />
+          </div>
+        </div>
 
-            <div v-if="!modoEdicaoInsumo" class="form-group">
-              <label for="ins-inicial">Quantidade Inicial (Opcional)</label>
-              <input
-                id="ins-inicial"
-                v-model.number="formInsumo.quantidade_inicial"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Gera entrada automática"
-              />
-            </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ins-validade">Data de Validade</label>
+            <input id="ins-validade" v-model="formInsumo.validade" type="date" />
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="ins-validade">Data de Validade</label>
-              <input id="ins-validade" v-model="formInsumo.validade" type="date" />
-            </div>
-
-            <div class="form-group">
-              <label for="ins-fornecedor">Fornecedor</label>
-              <input id="ins-fornecedor" v-model="formInsumo.fornecedor" type="text" placeholder="Nome do fornecedor" />
-            </div>
+          <div class="form-group">
+            <label for="ins-fornecedor">Fornecedor</label>
+            <input id="ins-fornecedor" v-model="formInsumo.fornecedor" type="text" placeholder="Nome do fornecedor" />
           </div>
+        </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn-secundario" :disabled="salvando" @click="modalInsumoAberto = false">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-primario" :disabled="salvando">
-              <span v-if="salvando" class="spinner-sm"></span>
-              {{ salvando ? 'Salvando...' : 'Salvar Insumo' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secundario" :disabled="salvando" @click="modalInsumoAberto = false">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primario" :disabled="salvando">
+            <span v-if="salvando" class="spinner-sm"></span>
+            {{ salvando ? 'Salvando...' : 'Salvar Insumo' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
 
     <!-- ========================================== -->
     <!-- MODAL: MOVIMENTAÇÃO DE LOTE                -->
     <!-- ========================================== -->
-    <div v-if="modalMovLoteAberto" class="modal-overlay" @click.self="modalMovLoteAberto = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>Lançar Movimentação de Lote</h3>
-          <button class="btn-close" @click="modalMovLoteAberto = false">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <ModalFormulario v-if="modalMovLoteAberto" titulo="Lançar Movimentação de Lote" @fechar="modalMovLoteAberto = false">
+
+      <form @submit.prevent="salvarMovLote">
+        <div class="form-group">
+          <label for="mov-lote-id">Lote *</label>
+          <select id="mov-lote-id" v-model="formMovLote.lote_id" required>
+            <option value="" disabled>Selecione o lote</option>
+            <option v-for="l in lotesMovimentaveis" :key="l.id" :value="l.id">
+              Lote #{{ l.id }} - {{ obterNomeCultura(l.cultura_id) }} (Saldo: {{ l.quantidade }} {{ l.unidade }})
+            </option>
+          </select>
         </div>
 
-        <form @submit.prevent="salvarMovLote">
+        <div class="form-row">
           <div class="form-group">
-            <label for="mov-lote-id">Lote *</label>
-            <select id="mov-lote-id" v-model="formMovLote.lote_id" required>
-              <option value="" disabled>Selecione o lote</option>
-              <option v-for="l in lotesMovimentaveis" :key="l.id" :value="l.id">
-                Lote #{{ l.id }} - {{ obterNomeCultura(l.cultura_id) }} (Saldo: {{ l.quantidade }} {{ l.unidade }})
-              </option>
+            <label for="mov-lote-tipo">Tipo de Movimentação *</label>
+            <select id="mov-lote-tipo" v-model="formMovLote.tipo_movimentacao" required>
+              <option value="Entrada">Entrada (Adiciona ao saldo)</option>
+              <option value="Saída">Saída (Subtrai do saldo)</option>
+              <option value="Perda">Perda (Subtrai do saldo)</option>
+              <option value="Ajuste">Ajuste (Adiciona ao saldo)</option>
             </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="mov-lote-tipo">Tipo de Movimentação *</label>
-              <select id="mov-lote-tipo" v-model="formMovLote.tipo_movimentacao" required>
-                <option value="Entrada">Entrada (Adiciona ao saldo)</option>
-                <option value="Saída">Saída (Subtrai do saldo)</option>
-                <option value="Perda">Perda (Subtrai do saldo)</option>
-                <option value="Ajuste">Ajuste (Adiciona ao saldo)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="mov-lote-qtd">Quantidade *</label>
-              <input
-                id="mov-lote-qtd"
-                v-model.number="formMovLote.quantidade"
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-              />
-            </div>
-          </div>
-
           <div class="form-group">
-            <label for="mov-lote-motivo">Motivo *</label>
-            <input id="mov-lote-motivo" v-model="formMovLote.motivo" type="text" required placeholder="Justificativa do lançamento" />
+            <label for="mov-lote-qtd">Quantidade *</label>
+            <input
+              id="mov-lote-qtd"
+              v-model.number="formMovLote.quantidade"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+            />
           </div>
+        </div>
 
-          <div class="form-group">
-            <label for="mov-lote-obs">Observações</label>
-            <textarea id="mov-lote-obs" v-model="formMovLote.observacoes" rows="2"></textarea>
-          </div>
+        <div class="form-group">
+          <label for="mov-lote-motivo">Motivo *</label>
+          <input id="mov-lote-motivo" v-model="formMovLote.motivo" type="text" required placeholder="Justificativa do lançamento" />
+        </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMovLoteAberto = false">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-primario" :disabled="salvando">
-              <span v-if="salvando" class="spinner-sm"></span>
-              {{ salvando ? 'Lançando...' : 'Confirmar Lançamento' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="form-group">
+          <label for="mov-lote-obs">Observações</label>
+          <textarea id="mov-lote-obs" v-model="formMovLote.observacoes" rows="2"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMovLoteAberto = false">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primario" :disabled="salvando">
+            <span v-if="salvando" class="spinner-sm"></span>
+            {{ salvando ? 'Lançando...' : 'Confirmar Lançamento' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
 
     <!-- ========================================== -->
     <!-- MODAL: MOVIMENTAÇÃO DE INSUMO              -->
     <!-- ========================================== -->
-    <div v-if="modalMovInsumoAberto" class="modal-overlay" @click.self="modalMovInsumoAberto = false">
-      <div class="modal-card">
-        <div class="modal-header">
-          <h3>Lançar Movimentação de Insumo</h3>
-          <button class="btn-close" @click="modalMovInsumoAberto = false">
-            <span class="material-symbols-outlined">close</span>
-          </button>
+    <ModalFormulario v-if="modalMovInsumoAberto" titulo="Lançar Movimentação de Insumo" @fechar="modalMovInsumoAberto = false">
+
+      <form @submit.prevent="salvarMovInsumo">
+        <div class="form-group">
+          <label for="mov-ins-id">Insumo *</label>
+          <select id="mov-ins-id" v-model="formMovInsumo.insumo_id" required>
+            <option value="" disabled>Selecione o insumo</option>
+            <option v-for="ins in insumos" :key="ins.id" :value="ins.id">
+              {{ ins.nome }} (Saldo: {{ ins.quantidade_atual }} {{ ins.unidade }})
+            </option>
+          </select>
         </div>
 
-        <form @submit.prevent="salvarMovInsumo">
+        <div class="form-row">
           <div class="form-group">
-            <label for="mov-ins-id">Insumo *</label>
-            <select id="mov-ins-id" v-model="formMovInsumo.insumo_id" required>
-              <option value="" disabled>Selecione o insumo</option>
-              <option v-for="ins in insumos" :key="ins.id" :value="ins.id">
-                {{ ins.nome }} (Saldo: {{ ins.quantidade_atual }} {{ ins.unidade }})
+            <label for="mov-ins-tipo">Tipo de Movimentação *</label>
+            <select id="mov-ins-tipo" v-model="formMovInsumo.tipo_movimentacao" required>
+              <!-- Entrada e Ajuste apenas para gerente/admin -->
+              <option value="Entrada" :disabled="!podeGerenciarInsumos">
+                Entrada {{ !podeGerenciarInsumos ? '(Requer perfil de Gerente/Admin)' : '' }}
+              </option>
+              <option value="Saída">Saída</option>
+              <option value="Perda">Perda</option>
+              <option value="Ajuste" :disabled="!podeGerenciarInsumos">
+                Ajuste {{ !podeGerenciarInsumos ? '(Requer perfil de Gerente/Admin)' : '' }}
               </option>
             </select>
           </div>
 
-          <div class="form-row">
-            <div class="form-group">
-              <label for="mov-ins-tipo">Tipo de Movimentação *</label>
-              <select id="mov-ins-tipo" v-model="formMovInsumo.tipo_movimentacao" required>
-                <!-- Entrada e Ajuste apenas para gerente/admin -->
-                <option value="Entrada" :disabled="!podeGerenciarInsumos">
-                  Entrada {{ !podeGerenciarInsumos ? '(Requer perfil de Gerente/Admin)' : '' }}
-                </option>
-                <option value="Saída">Saída</option>
-                <option value="Perda">Perda</option>
-                <option value="Ajuste" :disabled="!podeGerenciarInsumos">
-                  Ajuste {{ !podeGerenciarInsumos ? '(Requer perfil de Gerente/Admin)' : '' }}
-                </option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label for="mov-ins-qtd">Quantidade *</label>
-              <input
-                id="mov-ins-qtd"
-                v-model.number="formMovInsumo.quantidade"
-                type="number"
-                step="0.01"
-                min="0.01"
-                required
-              />
-            </div>
-          </div>
-
           <div class="form-group">
-            <label for="mov-ins-motivo">Motivo *</label>
-            <input id="mov-ins-motivo" v-model="formMovInsumo.motivo" type="text" required placeholder="Motivo do consumo ou entrada" />
+            <label for="mov-ins-qtd">Quantidade *</label>
+            <input
+              id="mov-ins-qtd"
+              v-model.number="formMovInsumo.quantidade"
+              type="number"
+              step="0.01"
+              min="0.01"
+              required
+            />
           </div>
+        </div>
 
-          <div class="form-group">
-            <label for="mov-ins-obs">Observações</label>
-            <textarea id="mov-ins-obs" v-model="formMovInsumo.observacoes" rows="2"></textarea>
-          </div>
+        <div class="form-group">
+          <label for="mov-ins-motivo">Motivo *</label>
+          <input id="mov-ins-motivo" v-model="formMovInsumo.motivo" type="text" required placeholder="Motivo do consumo ou entrada" />
+        </div>
 
-          <div class="modal-actions">
-            <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMovInsumoAberto = false">
-              Cancelar
-            </button>
-            <button type="submit" class="btn-primario" :disabled="salvando">
-              <span v-if="salvando" class="spinner-sm"></span>
-              {{ salvando ? 'Lançando...' : 'Confirmar Lançamento' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div class="form-group">
+          <label for="mov-ins-obs">Observações</label>
+          <textarea id="mov-ins-obs" v-model="formMovInsumo.observacoes" rows="2"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secundario" :disabled="salvando" @click="modalMovInsumoAberto = false">
+            Cancelar
+          </button>
+          <button type="submit" class="btn-primario" :disabled="salvando">
+            <span v-if="salvando" class="spinner-sm"></span>
+            {{ salvando ? 'Lançando...' : 'Confirmar Lançamento' }}
+          </button>
+        </div>
+      </form>
+    </ModalFormulario>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
+import ModalFormulario from '@/components/ModalFormulario.vue'
+import EstadoVazio from '@/components/EstadoVazio.vue'
+import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
@@ -542,7 +510,7 @@ import { useRoute } from 'vue-router'
 import estoqueService from '@/services/estoqueService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
-import { formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -697,14 +665,6 @@ function rotuloTipoInsumo(tipo) {
   return mapa[tipo] || tipo
 }
 
-function formatarData(dataStr) {
-  if (!dataStr) return '-'
-  // "AAAA-MM-DD" sem hora seria lido como meia-noite UTC e mostrado um dia antes no Brasil
-  const somenteData = /^\d{4}-\d{2}-\d{2}$/.test(dataStr)
-  const d = new Date(somenteData ? `${dataStr}T00:00:00` : dataStr)
-  if (Number.isNaN(d.getTime())) return dataStr
-  return d.toLocaleDateString('pt-BR')
-}
 
 // INSUMOS
 function abrirModalNovoInsumo() {
@@ -866,12 +826,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.estoque-view {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
-}
-
 .estoque-container {
   margin-top: 1.5rem;
 }
@@ -1026,14 +980,6 @@ onMounted(() => {
   color: #ef4444;
 }
 
-.font-mono {
-  font-family: monospace;
-}
-
-.font-destaque {
-  font-weight: 600;
-}
-
 .badge-status,
 .badge-tipo {
   display: inline-block;
@@ -1086,134 +1032,5 @@ onMounted(() => {
 .acoes-linha {
   display: flex;
   gap: 0.25rem;
-}
-
-.btn-icon {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 0.25rem;
-  display: flex;
-  align-items: center;
-  border-radius: 4px;
-  color: var(--color-text-muted, #64748b);
-}
-
-.btn-icon.btn-danger:hover {
-  color: var(--color-danger, #ef4444);
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-  color: var(--color-text-muted, #64748b);
-}
-
-.loading-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 4rem;
-}
-
-.spinner {
-  width: 36px;
-  height: 36px;
-  border: 3px solid var(--color-border, #e2e8f0);
-  border-top-color: var(--color-primary, #16a34a);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 0.75rem;
-}
-
-.spinner-sm {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid #ffffff;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  padding: 1rem;
-}
-
-.modal-card {
-  background-color: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.5rem;
-  width: 100%;
-  max-width: 520px;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.25rem;
-}
-
-.modal-header h3 {
-  margin: 0;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-text-muted, #64748b);
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text, #1e293b);
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-md, 8px);
-  font-size: 0.9rem;
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 </style>
