@@ -137,3 +137,9 @@ export function formatarDataCurta(iso) {
   const data = dataLocal(iso)
   return data ? data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
 }
+
+/** Campo legível de um item da lista pelo id ("A1", "Alface"), ou "Mesa #3" se não estiver carregado. */
+export function rotuloPorId(lista, id, campo, prefixo) {
+  const item = lista.find((x) => x.id === id)
+  return item ? item[campo] : `${prefixo} #${id}`
+}

@@ -96,7 +96,7 @@
 <script setup>
 import { ref, watch, nextTick, onMounted } from 'vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
-import apiClient from '@/services/api'
+import assistenteService from '@/services/assistenteService'
 import { mensagemDeErro } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 
@@ -155,8 +155,8 @@ async function enviarMensagem() {
   rolarParaFinal()
 
   try {
-    const res = await apiClient.post('/ia/chat-assistant/', { mensagem: textoLimpo })
-    const respostaTexto = res.data?.mensagem || res.data?.texto || 'Resposta recebida do servidor.'
+    const resposta = await assistenteService.perguntar(textoLimpo)
+    const respostaTexto = resposta?.mensagem || resposta?.texto || 'Resposta recebida do servidor.'
 
     historico.value.push({
       remetente: 'ia',

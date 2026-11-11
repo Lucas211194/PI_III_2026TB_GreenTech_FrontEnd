@@ -7,23 +7,14 @@ export const loteService = {
     return extrairLista(res.data)
   },
 
-  async obterPorId(id) {
-    const res = await apiClient.get(`/lotes/${id}/`)
-    return res.data
-  },
-
   async criar(dados) {
     const res = await apiClient.post('/lotes/', dados)
     return res.data
   },
 
-  async atualizar(id, dados) {
-    const res = await apiClient.put(`/lotes/${id}/`, dados)
-    return res.data
-  },
-
-  async atualizarParcial(id, dados) {
-    const res = await apiClient.patch(`/lotes/${id}/`, dados)
+  // dados: { quantidade, motivo }
+  async registrarPerda(id, dados) {
+    const res = await apiClient.post(`/lotes/${id}/registrar_perda/`, dados)
     return res.data
   },
 

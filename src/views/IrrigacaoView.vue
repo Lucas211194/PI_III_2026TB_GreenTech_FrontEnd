@@ -196,8 +196,9 @@ import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
 import AvisoLocalizacao from '@/components/AvisoLocalizacao.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarDataHora, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import irrigacaoService from '@/services/irrigacaoService'
+import estruturaService from '@/services/estruturaService'
+import { formatarDataHora, mensagemDeErro, parseNumero, rotuloPorId } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 import { useToastStore } from '@/stores/toast'
 
@@ -226,8 +227,7 @@ const paramsDecisoes = () => ({ limite: 50, ...(soMudancas.value ? { so_mudancas
 
 async function carregarDecisoes() {
   try {
-    const res = await apiClient.get('/irrigacao/decisoes-ia/', { params: paramsDecisoes() })
-    decisoesIA.value = extrairLista(res.data)
+    decisoesIA.value = await irrigacaoService.listarDecisoes(paramsDecisoes())
   } catch (err) {
     toastStore.error(mensagemDeErro(err, 'Não foi possível carregar as decisões da IA.'))
   }
@@ -237,25 +237,19 @@ async function carregarDados() {
   carregando.value = true
   erroCarregamento.value = ''
   try {
-    const chamadas = [
-      apiClient.get('/irrigacao/'),
-      apiClient.get('/mesa/'),
-    ]
-
     // Só chama as rotas de automação se a flag estiver ligada
+    const [registros, listaMesas, status, decisoes] = await Promise.all([
+      irrigacaoService.listarRegistros(),
+      estruturaService.listarMesas(),
+      ...(FEATURES.irrigacaoIA ? [irrigacaoService.obterStatus(), irrigacaoService.listarDecisoes(paramsDecisoes())] : []),
+    ])
+
+    registrosReais.value = registros
+    mesas.value = listaMesas
+
     if (FEATURES.irrigacaoIA) {
-      chamadas.push(apiClient.get('/irrigacao/status/'))
-      chamadas.push(apiClient.get('/irrigacao/decisoes-ia/', { params: paramsDecisoes() }))
-    }
-
-    const respostas = await Promise.all(chamadas)
-
-    registrosReais.value = extrairLista(respostas[0].data)
-    mesas.value = extrairLista(respostas[1].data)
-
-    if (FEATURES.irrigacaoIA && respostas[2]) {
-      statusIA.value = respostas[2].data || { modo: 'MANUAL', valvulas: [] }
-      decisoesIA.value = extrairLista(respostas[3]?.data)
+      statusIA.value = status || { modo: 'MANUAL', valvulas: [] }
+      decisoesIA.value = decisoes
     }
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar dados de irrigação do servidor.')
@@ -284,10 +278,7 @@ const ultimosPorValvula = computed(() => {
   return Array.from(mapa.values())
 })
 
-function obterIdentificacaoMesa(mesaId) {
-  const m = mesas.value.find((item) => item.id === mesaId)
-  return m ? m.identificacao : `Mesa #${mesaId}`
-}
+const obterIdentificacaoMesa = (mesaId) => rotuloPorId(mesas.value, mesaId, 'identificacao', 'Mesa')
 
 
 async function alternarModoOperacao() {
@@ -297,10 +288,10 @@ async function alternarModoOperacao() {
   const novoModo = statusIA.value.modo === 'MANUAL' ? 'AUTOMATICO_IA' : 'MANUAL'
 
   try {
-    const res = await apiClient.post('/irrigacao/modo/', { modo: novoModo })
+    const resposta = await irrigacaoService.alterarModo(novoModo)
     // Atualização estrita somente após confirmação 2xx do servidor
-    statusIA.value.modo = res.data?.modo || novoModo
-    statusIA.value.modo_nome = res.data?.modo_nome
+    statusIA.value.modo = resposta?.modo || novoModo
+    statusIA.value.modo_nome = resposta?.modo_nome
     toastStore.success(`Modo de irrigação: ${statusIA.value.modo_nome || statusIA.value.modo}`)
   } catch (err) {
     toastStore.error(mensagemDeErro(err, 'Não foi possível alterar o modo de irrigação.'))
@@ -312,8 +303,7 @@ async function alternarModoOperacao() {
 async function avaliarAgora() {
   avaliando.value = true
   try {
-    const res = await apiClient.post('/irrigacao/avaliar/')
-    const decisoes = extrairLista(res.data)
+    const decisoes = await irrigacaoService.avaliar()
     const mudancas = decisoes.filter((d) => d.acao === 'abrir' || d.acao === 'fechar')
     if (decisoes.length === 0) {
       toastStore.warning('Nenhuma mesa tem leitura de umidade do solo para avaliar.')

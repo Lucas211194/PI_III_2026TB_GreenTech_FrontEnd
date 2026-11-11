@@ -14,7 +14,7 @@
 
 <script setup>
 // Janela de formulário: fundo escuro, cabeçalho com título e fechar; o formulário vem no slot.
-// Os campos (.form-group, .form-row) e os botões (.modal-actions) do slot ganham o estilo daqui.
+// Campos (.form-group, .form-row) e botões (.modal-actions) usam o estilo global de formulários.
 defineProps({
   titulo: { type: String, required: true },
   estreito: { type: Boolean, default: false },
@@ -64,46 +64,5 @@ const emit = defineEmits(['fechar'])
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-}
-
-:slotted(.form-group) {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-:slotted(.form-group label) {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
-:slotted(.form-group input),
-:slotted(.form-group select),
-:slotted(.form-group textarea) {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  font-size: 0.9rem;
-}
-
-:slotted(.form-row) {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-:slotted(.modal-actions) {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
-}
-
-@media (max-width: 600px) {
-  :slotted(.form-row) {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

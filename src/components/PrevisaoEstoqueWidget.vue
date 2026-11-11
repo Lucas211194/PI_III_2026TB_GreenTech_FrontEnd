@@ -109,8 +109,8 @@ import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, onMounted } from 'vue'
 import RecursoIndisponivel from '@/components/RecursoIndisponivel.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarData, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import estoqueService from '@/services/estoqueService'
+import { formatarData, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 
 const props = defineProps({
@@ -135,8 +135,7 @@ async function carregarPrevisoes(recalcular = false) {
   if (recalcular) params.recalcular = 1
 
   try {
-    const res = await apiClient.get('/estoque/previsao-prophet/', { params })
-    previsoes.value = extrairLista(res.data)
+    previsoes.value = await estoqueService.listarPrevisoes(params)
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(
       err,

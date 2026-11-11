@@ -124,8 +124,8 @@ import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
+import funcionarioService from '@/services/funcionarioService'
+import { formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -148,8 +148,7 @@ async function carregarHistorico() {
   erroCarregamento.value = ''
 
   try {
-    const res = await apiClient.get('/funcionarios/auditoria/')
-    logs.value = extrairLista(res.data)
+    logs.value = await funcionarioService.listarAuditoria()
   } catch (err) {
     if (err.response?.status === 403) {
       semPermissao.value = true

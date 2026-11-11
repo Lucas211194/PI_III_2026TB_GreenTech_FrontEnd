@@ -156,8 +156,9 @@ import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarDataHora, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import climaService from '@/services/climaService'
+import estruturaService from '@/services/estruturaService'
+import { formatarDataHora, mensagemDeErro, parseNumero, rotuloPorId } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -174,19 +175,11 @@ async function carregarDados() {
   carregando.value = true
   erroCarregamento.value = ''
   try {
-    const [resClima, resMesas, resEstufas] = await Promise.all([
-      apiClient.get('/clima/'),
-      apiClient.get('/mesa/'),
-      apiClient.get('/estufa/'),
+    [leiturasClima.value, mesas.value, estufas.value] = await Promise.all([
+      climaService.listarLeituras(),
+      estruturaService.listarMesas(),
+      estruturaService.listarEstufas(),
     ])
-
-    const listaClima = extrairLista(resClima.data)
-    // Ordenar no front-end por data_registro decrescente
-    listaClima.sort((a, b) => new Date(b.data_registro) - new Date(a.data_registro))
-
-    leiturasClima.value = listaClima
-    mesas.value = extrairLista(resMesas.data)
-    estufas.value = extrairLista(resEstufas.data)
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar os dados climáticos dos sensores.')
     toastStore.error(erroCarregamento.value)
@@ -195,10 +188,7 @@ async function carregarDados() {
   }
 }
 
-function obterIdentificacaoMesa(mesaId) {
-  const m = mesas.value.find((item) => item.id === mesaId)
-  return m ? m.identificacao : `Mesa #${mesaId}`
-}
+const obterIdentificacaoMesa = (mesaId) => rotuloPorId(mesas.value, mesaId, 'identificacao', 'Mesa')
 
 function obterNomeEstufaPorMesa(mesaId) {
   const m = mesas.value.find((item) => item.id === mesaId)

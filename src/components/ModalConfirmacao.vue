@@ -18,6 +18,8 @@
 
         <div class="modal-content">
           <p>{{ mensagem }}</p>
+          <!-- Detalhes extras da confirmação (resumo, lista de itens...) -->
+          <slot />
         </div>
 
         <footer class="modal-actions">

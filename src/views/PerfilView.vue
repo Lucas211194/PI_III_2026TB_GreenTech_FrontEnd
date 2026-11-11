@@ -508,25 +508,6 @@ onMounted(() => {
   grid-column: span 2;
 }
 
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.form-group label {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--color-text, #1e293b);
-}
-
-.form-group input {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-md, 8px);
-  font-size: 0.9rem;
-}
-
 .input-desabilitado {
   background-color: var(--color-background, #f8fafc);
   color: var(--color-text-muted, #64748b);

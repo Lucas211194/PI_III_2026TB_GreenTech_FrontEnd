@@ -34,27 +34,6 @@
   margin-left: 260px;
 }
 
-/* --- FORMULÁRIO CENTRALIZADO (CARD) --- */
-
-/* Inputs e Focus */
-.form-group input,
-.form-group select {
-  background: white;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
-  padding: 12px 15px;
-  font-size: 0.95rem;
-  outline: none;
-  transition: all 0.3s;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  border-color: var(--primary-green);
-  box-shadow: 0 0 0 4px rgba(58, 90, 64, 0.1);
-}
-
-/* Prefixos Customizados */
 
 /* Remove setinhas de número */
 input::-webkit-outer-spin-button,

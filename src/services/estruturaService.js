@@ -8,11 +8,6 @@ export const estruturaService = {
     return extrairLista(res.data)
   },
 
-  async obterEstufaPorId(id) {
-    const res = await apiClient.get(`/estufa/${id}/`)
-    return res.data
-  },
-
   async criarEstufa(dados) {
     const res = await apiClient.post('/estufa/', dados)
     return res.data
@@ -32,11 +27,6 @@ export const estruturaService = {
   async listarMesas() {
     const res = await apiClient.get('/mesa/')
     return extrairLista(res.data)
-  },
-
-  async obterMesaPorId(id) {
-    const res = await apiClient.get(`/mesa/${id}/`)
-    return res.data
   },
 
   async criarMesa(dados) {

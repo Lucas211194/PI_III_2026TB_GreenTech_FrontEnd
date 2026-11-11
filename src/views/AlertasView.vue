@@ -107,8 +107,8 @@ import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
+import alertaService from '@/services/alertaService'
+import { formatarDataHora, mensagemDeErro } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -130,8 +130,7 @@ async function carregarDados() {
 
   try {
     // Só os alertas que ainda não foram resolvidos, do mais recente para o mais antigo
-    const res = await apiClient.get('/alertas/', { params: { status: 'ativo' } })
-    alertas.value = extrairLista(res.data)
+    alertas.value = await alertaService.listarAtivos()
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar os alertas.')
     toastStore.error(erroCarregamento.value)
@@ -143,7 +142,7 @@ async function carregarDados() {
 async function resolverAlerta(alerta) {
   resolvendoId.value = alerta.id
   try {
-    await apiClient.patch(`/alertas/${alerta.id}/resolver/`)
+    await alertaService.resolver(alerta.id)
     // Remove da lista somente após confirmação 2xx do servidor
     alertas.value = alertas.value.filter((a) => a.id !== alerta.id)
     toastStore.success('Alerta marcado como resolvido.')

@@ -258,8 +258,10 @@ import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
 import { ref, computed, onMounted, watch } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarData, formatarQuantidade, mensagemDeErro } from '@/services/apiHelpers'
+import loteService from '@/services/loteService'
+import culturaService from '@/services/culturaService'
+import estruturaService from '@/services/estruturaService'
+import { formatarData, formatarQuantidade, mensagemDeErro, rotuloPorId } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 import verificarPermissao from '@/assets/JS/verificarPermissao'
@@ -345,15 +347,11 @@ async function carregarDados() {
   carregando.value = true
   erroCarregamento.value = ''
   try {
-    const [resLotes, resCulturas, resMesas] = await Promise.all([
-      apiClient.get('/lotes/'),
-      apiClient.get('/cultura/'),
-      apiClient.get('/mesa/')
+    [lotes.value, culturas.value, mesas.value] = await Promise.all([
+      loteService.listar(),
+      culturaService.listar(),
+      estruturaService.listarMesas(),
     ])
-
-    lotes.value = extrairLista(resLotes.data)
-    culturas.value = extrairLista(resCulturas.data)
-    mesas.value = extrairLista(resMesas.data)
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar dados dos lotes.')
     toastStore.error(erroCarregamento.value)
@@ -386,15 +384,9 @@ const lotesFiltrados = computed(() => {
   })
 })
 
-function obterNomeCultura(culturaId) {
-  const cultura = culturas.value.find((c) => c.id === culturaId)
-  return cultura ? cultura.nome_cultura : `Cultura #${culturaId}`
-}
+const obterNomeCultura = (culturaId) => rotuloPorId(culturas.value, culturaId, 'nome_cultura', 'Cultura')
 
-function obterIdentificacaoMesa(mesaId) {
-  const mesa = mesas.value.find((m) => m.id === mesaId)
-  return mesa ? mesa.identificacao : `Mesa #${mesaId}`
-}
+const obterIdentificacaoMesa = (mesaId) => rotuloPorId(mesas.value, mesaId, 'identificacao', 'Mesa')
 
 
 
@@ -424,7 +416,7 @@ async function salvarLote() {
       payload.quantidade_origem = novoLote.value.quantidade_origem
     }
 
-    await apiClient.post('/lotes/', payload)
+    await loteService.criar(payload)
     toastStore.success('Lote criado com sucesso e movimentação registrada!')
     exibirModal.value = false
     await carregarDados()
@@ -449,14 +441,14 @@ async function salvarPerda() {
   salvando.value = true
   try {
     const lote = lotePerda.value
-    const res = await apiClient.post(`/lotes/${lote.id}/registrar_perda/`, {
+    const atualizado = await loteService.registrarPerda(lote.id, {
       quantidade: formPerda.value.quantidade,
       motivo: formPerda.value.motivo.trim()
     })
     toastStore.success(
-      res.data.status === 'PE'
+      atualizado.status === 'PE'
         ? `Lote #${lote.id} encerrado como perdido. A mesa foi liberada.`
-        : `Perda registrada. Saldo atual: ${formatarQuantidade(res.data.quantidade)} ${rotuloUnidade(res.data.unidade)}.`
+        : `Perda registrada. Saldo atual: ${formatarQuantidade(atualizado.quantidade)} ${rotuloUnidade(atualizado.unidade)}.`
     )
     lotePerda.value = null
     await carregarDados()
@@ -473,7 +465,7 @@ async function excluirLote(id) {
   }
 
   try {
-    await apiClient.delete(`/lotes/${id}/`)
+    await loteService.excluir(id)
     toastStore.success(`Lote #${id} excluído com sucesso!`)
     await carregarDados()
   } catch (err) {

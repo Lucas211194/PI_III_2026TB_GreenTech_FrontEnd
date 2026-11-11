@@ -153,7 +153,7 @@ import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
 import funcionarioService from '@/services/funcionarioService'
 import estruturaService from '@/services/estruturaService'
-import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero, rotuloPorId } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -254,10 +254,7 @@ function obterUnidadeLote(loteId) {
   return !lote || lote.unidade === 'UN' ? 'plantas' : lote.unidade
 }
 
-function obterIdentificacaoMesa(mesaId) {
-  const mesa = mesas.value.find((m) => m.id === mesaId)
-  return mesa ? mesa.identificacao : `Mesa #${mesaId}`
-}
+const obterIdentificacaoMesa = (mesaId) => rotuloPorId(mesas.value, mesaId, 'identificacao', 'Mesa')
 
 // Quanto do ciclo da cultura já passou desde o plantio
 function percentualCiclo(lote) {

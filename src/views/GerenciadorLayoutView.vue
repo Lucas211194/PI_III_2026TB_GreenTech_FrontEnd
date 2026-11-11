@@ -166,7 +166,7 @@ import EstruturaFisicaPanel from '@/components/EstruturaFisicaPanel.vue'
 import estruturaService from '@/services/estruturaService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
-import { mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { mensagemDeErro, parseNumero, rotuloPorId } from '@/services/apiHelpers'
 import { useToastStore } from '@/stores/toast'
 
 const toastStore = useToastStore()
@@ -204,10 +204,7 @@ async function carregarDados() {
   }
 }
 
-function obterNomeCultura(culturaId) {
-  const c = culturas.value.find((item) => item.id === culturaId)
-  return c ? c.nome_cultura : `Cultura #${culturaId}`
-}
+const obterNomeCultura = (culturaId) => rotuloPorId(culturas.value, culturaId, 'nome_cultura', 'Cultura')
 
 function obterLoteAtivoDaMesa(mesaId) {
   return lotes.value.find(

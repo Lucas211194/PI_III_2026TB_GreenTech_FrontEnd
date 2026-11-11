@@ -510,7 +510,7 @@ import { useRoute } from 'vue-router'
 import estoqueService from '@/services/estoqueService'
 import loteService from '@/services/loteService'
 import culturaService from '@/services/culturaService'
-import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { formatarData, formatarQuantidade, mensagemDeErro, parseNumero, rotuloPorId } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -645,15 +645,9 @@ function estaAbaixoEstoqueMinimo(ins) {
   return parseNumero(ins.quantidade_atual) <= parseNumero(ins.estoque_minimo)
 }
 
-function obterNomeCultura(culturaId) {
-  const c = culturas.value.find((item) => item.id === culturaId)
-  return c ? c.nome_cultura : `Cultura #${culturaId}`
-}
+const obterNomeCultura = (culturaId) => rotuloPorId(culturas.value, culturaId, 'nome_cultura', 'Cultura')
 
-function obterNomeInsumo(insumoId) {
-  const ins = insumos.value.find((item) => item.id === insumoId)
-  return ins ? ins.nome : `Insumo #${insumoId}`
-}
+const obterNomeInsumo = (insumoId) => rotuloPorId(insumos.value, insumoId, 'nome', 'Insumo')
 
 function rotuloTipoInsumo(tipo) {
   const mapa = {

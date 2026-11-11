@@ -172,8 +172,12 @@
 <script setup>
 import EstadoVazio from '@/components/EstadoVazio.vue'
 import { ref, computed, onMounted } from 'vue';
-import apiClient from '@/services/api';
-import { extrairLista, formatarQuantidade } from '@/services/apiHelpers';
+import loteService from '@/services/loteService';
+import culturaService from '@/services/culturaService';
+import estruturaService from '@/services/estruturaService';
+import estoqueService from '@/services/estoqueService';
+import alertaService from '@/services/alertaService';
+import { formatarQuantidade } from '@/services/apiHelpers';
 import PageLayout from '@/components/PageLayout.vue';
 import WeatherWidget from '@/components/WeatherWidget.vue';
 import PrevisaoEstoqueWidget from '@/components/PrevisaoEstoqueWidget.vue';
@@ -287,16 +291,16 @@ const lotesMaisProximosColheita = computed(() => {
 });
 
 onMounted(async () => {
-  // apiClient renova o token sozinho; o fetch direto deixava o painel vazio quando o token expirava
-  const listar = (url, params) => apiClient.get(url, { params }).then(res => extrairLista(res.data)).catch(() => []);
+  // Cada bloco do painel aparece mesmo se outra rota falhar
+  const ouVazio = (promessa) => promessa.catch(() => []);
   try {
     [lotes.value, culturas.value, estufas.value, mesas.value, estoque.value, alertasAtivos.value] = await Promise.all([
-      listar('/lotes/'),
-      listar('/cultura/'),
-      listar('/estufa/'),
-      listar('/mesa/'),
-      listar('/estoque/'),
-      listar('/alertas/', { status: 'ativo' })
+      ouVazio(loteService.listar()),
+      ouVazio(culturaService.listar()),
+      ouVazio(estruturaService.listarEstufas()),
+      ouVazio(estruturaService.listarMesas()),
+      ouVazio(estoqueService.listarMovimentacoesLote()),
+      ouVazio(alertaService.listarAtivos()),
     ]);
   } catch (e) {
     console.error("Erro ao carregar dados do Dashboard:", e);

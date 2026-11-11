@@ -137,39 +137,36 @@
     </div>
 
     <!-- MODAL DE CONFIRMAÇÃO DE DESTINO -->
-    <div v-if="exibirModalConfirmacao" class="modal-overlay">
-      <div class="modal-card">
-        <h3>Confirmar Entrada em Massa</h3>
-        <p>
-          Os itens identificados serão inseridos no estoque de acordo com o destino configurado (Insumos ou Culturas).
-        </p>
-        <div class="resumo-confirmacao">
-          <div>
-            Total de Itens: <strong>{{ dadosNota.itens.length }}</strong>
-          </div>
-          <div>
-            Valor Total: <strong>{{ formatarMoeda(calcularValorTotalNota()) }}</strong>
-          </div>
+    <ModalConfirmacao
+      :ativo="exibirModalConfirmacao"
+      titulo="Confirmar Entrada em Massa"
+      mensagem="Os itens identificados serão inseridos no estoque de acordo com o destino configurado (Insumos ou Culturas)."
+      texto-confirmar="Confirmar e Gravar"
+      texto-cancelar="Voltar e Revisar"
+      variante="seguro"
+      :processando="salvando"
+      @confirmar="confirmarGravacaoEstoque"
+      @cancelar="exibirModalConfirmacao = false"
+    >
+      <div class="resumo-confirmacao">
+        <div>
+          Total de Itens: <strong>{{ dadosNota.itens.length }}</strong>
         </div>
-        <div class="modal-actions">
-          <button class="btn-secundario" :disabled="salvando" @click="exibirModalConfirmacao = false">
-            Voltar e Revisar
-          </button>
-          <button class="btn-primario" :disabled="salvando" @click="confirmarGravacaoEstoque">
-            Confirmar e Gravar
-          </button>
+        <div>
+          Valor Total: <strong>{{ formatarMoeda(calcularValorTotalNota()) }}</strong>
         </div>
       </div>
-    </div>
+    </ModalConfirmacao>
   </div>
   </PageLayout>
 </template>
 
 <script setup>
 import EstadoCarregamento from '@/components/EstadoCarregamento.vue'
+import ModalConfirmacao from '@/components/ModalConfirmacao.vue'
 import { ref, computed } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
-import apiClient from '@/services/api'
+import estoqueService from '@/services/estoqueService'
 import { mensagemDeErro } from '@/services/apiHelpers'
 import { FEATURES } from '@/config/features'
 import { useToastStore } from '@/stores/toast'
@@ -232,8 +229,7 @@ async function processarArquivo(arquivo) {
   formData.append('documento', arquivo)
 
   try {
-    const res = await apiClient.post('/estoque/ocr-nota-fiscal/', formData)
-    const dados = res.data
+    const dados = await estoqueService.enviarOcrNota(formData)
 
     dadosNota.value = {
       numero: dados.numero || '',
@@ -335,8 +331,8 @@ async function confirmarGravacaoEstoque() {
       }))
     }
 
-    const res = await apiClient.post('/estoque/confirmar-lote-nf/', payload)
-    toastStore.success(res.data?.mensagem || 'Itens gravados com sucesso no estoque!')
+    const resposta = await estoqueService.confirmarLoteNota(payload)
+    toastStore.success(resposta?.mensagem || 'Itens gravados com sucesso no estoque!')
     exibirModalConfirmacao.value = false
     descartarProcessamento()
   } catch (err) {
@@ -512,24 +508,6 @@ async function confirmarGravacaoEstoque() {
   cursor: pointer;
 }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-card {
-  background-color: var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  width: 100%;
-  max-width: 450px;
-}
-
 .resumo-confirmacao {
   background-color: var(--color-background);
   padding: 1rem;
@@ -538,11 +516,5 @@ async function confirmarGravacaoEstoque() {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 1rem;
 }
 </style>

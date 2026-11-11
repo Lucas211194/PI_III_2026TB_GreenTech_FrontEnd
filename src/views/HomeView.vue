@@ -115,7 +115,7 @@
 </template>
 
 <script setup>
-import apiClient from '@/services/api'
+import authService from '@/services/authService'
 import { mensagemDeErro } from '@/services/apiHelpers'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -157,10 +157,7 @@ async function handleLogin() {
   carregando.value = true
 
   try {
-    const { data } = await apiClient.post('/token/', {
-      username: username.value,
-      password: password.value,
-    })
+    const data = await authService.entrar(username.value, password.value)
 
     if (lembrarUsuario.value) {
       localStorage.setItem(USUARIO_SALVO_KEY, username.value)

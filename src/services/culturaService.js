@@ -7,11 +7,6 @@ export const culturaService = {
     return extrairLista(res.data)
   },
 
-  async obterPorId(id) {
-    const res = await apiClient.get(`/cultura/${id}/`)
-    return res.data
-  },
-
   async criar(dados) {
     const res = await apiClient.post('/cultura/', dados)
     return res.data

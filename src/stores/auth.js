@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import apiClient from '@/services/api'
+import authService from '@/services/authService'
+import funcionarioService from '@/services/funcionarioService'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -34,14 +35,14 @@ export const useAuthStore = defineStore('auth', {
       if (!this.token) return null
 
       try {
-        const res = await apiClient.get('/funcionarios/me/')
-        this.perfil = res.data
+        const perfil = await funcionarioService.obterPerfil()
+        this.perfil = perfil
         this.usuario = {
           ...this.usuario,
-          ...res.data,
+          ...perfil,
         }
         localStorage.setItem('usuario', JSON.stringify(this.usuario))
-        return res.data
+        return perfil
       } catch (err) {
         console.error('Erro ao carregar dados do perfil:', err)
         return null
@@ -53,7 +54,7 @@ export const useAuthStore = defineStore('auth', {
 
       if (refresh) {
         try {
-          await apiClient.post('/logout/', { refresh })
+          await authService.sair(refresh)
         } catch (err) {
           // Falhas de rede na chamada de blacklist não bloqueiam a saída local
           console.warn('Não foi possível invalidar o token no servidor:', err)

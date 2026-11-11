@@ -13,20 +13,10 @@ export const estoqueService = {
     return res.data
   },
 
-  async excluirMovimentacaoLote(id) {
-    const res = await apiClient.delete(`/estoque/${id}/`)
-    return res.data
-  },
-
   // --- INSUMOS (/insumos/) ---
   async listarInsumos() {
     const res = await apiClient.get('/insumos/')
     return extrairLista(res.data)
-  },
-
-  async obterInsumoPorId(id) {
-    const res = await apiClient.get(`/insumos/${id}/`)
-    return res.data
   },
 
   /**
@@ -90,9 +80,10 @@ export const estoqueService = {
     return res.data
   },
 
-  async excluirMovimentacaoInsumo(id) {
-    const res = await apiClient.delete(`/movimentacoes-insumo/${id}/`)
-    return res.data
+  // --- PREVISÃO DE ESGOTAMENTO (RF09) --- params: { limite, recalcular }
+  async listarPrevisoes(params) {
+    const res = await apiClient.get('/estoque/previsao-prophet/', { params })
+    return extrairLista(res.data)
   },
 
   // --- NOTA FISCAL OCR ---
