@@ -93,3 +93,25 @@ export function parseNumero(valor, valorPadrao = 0) {
   const parsed = parseFloat(valor)
   return Number.isNaN(parsed) ? valorPadrao : parsed
 }
+/**
+ * Data "YYYY-MM-DD" do backend como data local (new Date('2026-11-20') cairia no dia anterior no Brasil).
+ */
+export function dataLocal(iso) {
+  if (!iso) return null
+  const [ano, mes, dia] = String(iso).slice(0, 10).split('-').map(Number)
+  return new Date(ano, mes - 1, dia)
+}
+
+/** Dias de hoje até a data (negativo se já passou). */
+export function diasAte(iso) {
+  const data = dataLocal(iso)
+  if (!data) return null
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  return Math.round((data - hoje) / 86400000)
+}
+
+export function formatarDataCurta(iso) {
+  const data = dataLocal(iso)
+  return data ? data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'
+}

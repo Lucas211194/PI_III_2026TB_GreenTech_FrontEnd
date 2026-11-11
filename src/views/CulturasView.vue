@@ -1,93 +1,170 @@
 <template>
   <PageLayout>
     <div class="culturas-container">
-      <div class="header-actions">
+      <header class="header-actions">
         <div>
           <h2>Culturas Cadastradas</h2>
           <p class="subtitle">Gerencie as espécies e parâmetros de cultivo da estufa</p>
         </div>
-        <button class="btn-primary" @click="abrirModalNovaCultura">
-          <span class="material-symbols-outlined">add</span>
-          Nova Cultura
-        </button>
-      </div>
+        <div class="toolbar">
+          <label class="search-box-estoque">
+            <span class="material-symbols-outlined search-icon">search</span>
+            <input v-model="busca" class="search-input" type="search" placeholder="Buscar cultura" aria-label="Buscar cultura" />
+          </label>
+          <select v-model="ordenacao" class="select-ordenar" aria-label="Ordenar culturas">
+            <option v-for="(op, chave) in ORDENACOES" :key="chave" :value="chave">Ordenar: {{ op.nome }}</option>
+          </select>
+          <!-- Exportação em CSV: cada página terá a sua, implementada depois -->
+          <button class="btn-outline btn-exportar" disabled title="Exportação em CSV em breve">
+            <span class="material-symbols-outlined">download</span>
+            Exportar CSV
+          </button>
+          <button class="btn-primary" @click="abrirModalNovaCultura">
+            <span class="material-symbols-outlined">add</span>
+            Nova Cultura
+          </button>
+        </div>
+      </header>
 
-      <!-- ESTADO DE CARREGAMENTO -->
       <div v-if="carregando" class="loading-state">
         <div class="spinner"></div>
         <p>Carregando culturas...</p>
       </div>
 
-      <!-- ESTADO DE ERRO -->
       <ErroCarregamento
         v-else-if="erroCarregamento"
         :mensagem="erroCarregamento"
         @tentar-novamente="carregarCulturas"
       />
 
-      <!-- LISTAGEM DE CULTURAS -->
-      <div v-else-if="culturas.length > 0" class="culturas-grid">
-        <div
-          v-for="cultura in culturas"
-          :key="cultura.id"
-          class="cultura-card"
-          @click="selecionarCultura(cultura)"
-        >
-          <div class="card-header">
-            <h3>{{ cultura.nome_cultura }}</h3>
-            <div class="card-actions" @click.stop>
-              <button class="btn-icon" title="Editar" @click="editarCultura(cultura)">
-                <span class="material-symbols-outlined">edit</span>
-              </button>
-              <button
-                v-if="podeExcluir"
-                class="btn-icon btn-danger"
-                title="Excluir"
-                @click="prepararExclusao(cultura)"
-              >
-                <span class="material-symbols-outlined">delete</span>
-              </button>
+      <template v-else-if="culturas.length > 0">
+        <section class="kpis">
+          <div v-for="kpi in kpis" :key="kpi.rotulo" class="resumo-card">
+            <div class="resumo-card-label">
+              <span class="material-symbols-outlined">{{ kpi.icone }}</span>{{ kpi.rotulo }}
             </div>
+            <div class="resumo-card-value">{{ kpi.valor }}</div>
+            <div class="kpi-detalhe">{{ kpi.detalhe }}</div>
           </div>
+        </section>
 
-          <p class="descricao-curta">{{ cultura.descricao || 'Sem descrição informada.' }}</p>
+        <section class="paineis">
+          <article class="painel">
+            <h3 class="painel-titulo">Colhido x Perdido por cultura</h3>
+            <GraficoBarras
+              v-if="graficoProducao.rotulos.length"
+              :rotulos="graficoProducao.rotulos"
+              :series="graficoProducao.series"
+              :height="graficoProducao.altura"
+              :rotulo-tooltip="rotuloTooltipProducao"
+              horizontal
+              empilhado
+              titulo="Quantidade colhida e perdida por cultura"
+            />
+            <p v-else class="painel-vazio">Nenhuma colheita registrada ainda.</p>
+          </article>
 
-          <div class="metricas-resumo">
-            <div class="metrica">
-              <span class="label">Ciclo Médio:</span>
-              <span class="valor">{{ cultura.tempo_medio_colheita }} dias</span>
-            </div>
-            <div class="metrica">
-              <span class="label">Faixa Temp.:</span>
-              <span class="valor">{{ cultura.temperatura_minima }}°C a {{ cultura.temperatura_maxima }}°C</span>
-            </div>
-            <div class="metrica">
-              <span class="label">Umidade Ideal:</span>
-              <span class="valor">{{ cultura.umidade_ideal }}%</span>
-            </div>
-          </div>
+          <article class="painel">
+            <h3 class="painel-titulo">Próximas colheitas</h3>
+            <ul v-if="proximasColheitas.length" class="proximas">
+              <li v-for="c in proximasColheitas" :key="c.id">
+                <span class="icone-categoria" :style="{ background: categoriaDe(c.categoria).cor }">
+                  <span class="material-symbols-outlined">{{ categoriaDe(c.categoria).icone }}</span>
+                </span>
+                <div class="proxima-info">
+                  <strong>{{ c.nome_cultura }}</strong>
+                  <small>Mesa {{ c.mesa_proxima_colheita }} · {{ formatarDataCurta(c.proxima_colheita) }}</small>
+                </div>
+                <span :class="['badge', prazoColheita(c).classe]">{{ prazoColheita(c).texto }}</span>
+              </li>
+            </ul>
+            <p v-else class="painel-vazio">Nenhum lote em cultivo.</p>
+          </article>
+        </section>
 
-          <!-- DADOS CALCULADOS PELO SERVIDOR (A11) -->
-          <div class="metricas-producao">
-            <div class="prod-item">
-              <span class="label">Total Colhido:</span>
-              <span class="valor">{{ formatarQuantidade(cultura.total_colhido) }}</span>
-            </div>
-            <div class="prod-item">
-              <span class="label">Total Perda:</span>
-              <span class="valor perda">{{ formatarQuantidade(cultura.total_perda) }}</span>
-            </div>
-            <div class="prod-item">
-              <span class="label">Taxa Produção:</span>
-              <span class="valor taxa">
-                {{ temColheita(cultura) ? `${parseNumero(cultura.taxa_producao).toFixed(1)}%` : '—' }}
+        <nav class="filtros" aria-label="Filtrar por categoria">
+          <button
+            v-for="filtro in filtros"
+            :key="filtro.valor"
+            :class="['filtro-btn', { active: categoriaFiltro === filtro.valor }]"
+            @click="categoriaFiltro = filtro.valor"
+          >
+            {{ filtro.nome }} ({{ filtro.total }})
+          </button>
+        </nav>
+
+        <div v-if="culturasVisiveis.length" class="culturas-grid">
+          <article
+            v-for="cultura in culturasVisiveis"
+            :key="cultura.id"
+            class="cultura-card"
+            :style="{ '--cor-categoria': categoriaDe(cultura.categoria).cor }"
+          >
+            <div class="card-faixa">
+              <span class="icone-categoria">
+                <span class="material-symbols-outlined">{{ categoriaDe(cultura.categoria).icone }}</span>
               </span>
             </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- ESTADO VAZIO -->
+            <div class="card-corpo">
+              <div class="card-titulo">
+                <div>
+                  <h3>{{ cultura.nome_cultura }}</h3>
+                  <small class="categoria-nome">{{ categoriaDe(cultura.categoria).nome }}</small>
+                </div>
+                <span :class="['badge', statusCultura(cultura).classe]">{{ statusCultura(cultura).texto }}</span>
+              </div>
+
+              <p class="descricao-curta">{{ cultura.descricao || 'Sem descrição informada.' }}</p>
+
+              <dl class="parametros">
+                <div v-for="p in parametros(cultura)" :key="p.rotulo">
+                  <dt><span class="material-symbols-outlined">{{ p.icone }}</span>{{ p.rotulo }}</dt>
+                  <dd>{{ p.valor }}</dd>
+                </div>
+              </dl>
+
+              <div v-if="cultura.proxima_colheita" class="bloco">
+                <div class="bloco-linha">
+                  <span>Mesa {{ cultura.mesa_proxima_colheita }} · dia {{ diaDoCiclo(cultura) }} de {{ cultura.tempo_medio_colheita }}</span>
+                  <span>{{ prazoColheita(cultura).texto }}</span>
+                </div>
+                <div class="prog-track">
+                  <div class="prog-fill" :style="{ width: `${progressoCiclo(cultura)}%` }"></div>
+                </div>
+              </div>
+
+              <div class="bloco">
+                <template v-if="temColheita(cultura)">
+                  <div class="bloco-linha">
+                    <span>Colhido {{ formatarQuantidade(cultura.total_colhido) }} · Perda {{ formatarQuantidade(cultura.total_perda) }}</span>
+                  </div>
+                  <div class="prog-track">
+                    <div class="prog-fill" :style="{ width: `${parseNumero(cultura.taxa_producao)}%` }"></div>
+                  </div>
+                  <span class="taxa">Taxa de produção: {{ formatarPercentual(cultura.taxa_producao) }}</span>
+                </template>
+                <span v-else class="sem-dados">Sem colheitas ainda</span>
+              </div>
+            </div>
+
+            <footer class="card-rodape">
+              <span>{{ textoLotes(cultura) }}</span>
+              <div class="card-actions">
+                <button class="btn-icon" title="Editar" @click="editarCultura(cultura)">
+                  <span class="material-symbols-outlined">edit</span>
+                </button>
+                <button v-if="podeExcluir" class="btn-icon btn-danger" title="Excluir" @click="prepararExclusao(cultura)">
+                  <span class="material-symbols-outlined">delete</span>
+                </button>
+              </div>
+            </footer>
+          </article>
+        </div>
+
+        <p v-else class="painel-vazio">Nenhuma cultura encontrada para esse filtro.</p>
+      </template>
+
       <div v-else class="empty-state">
         <span class="material-symbols-outlined empty-icon">potted_plant</span>
         <h3>Nenhuma cultura cadastrada</h3>
@@ -115,6 +192,13 @@
                 required
                 placeholder="Ex.: Tomate Cereja"
               />
+            </div>
+
+            <div class="form-group">
+              <label for="categoria-cultura">Categoria *</label>
+              <select id="categoria-cultura" v-model="formulario.categoria" required>
+                <option v-for="op in OPCOES_CATEGORIA" :key="op.valor" :value="op.valor">{{ op.nome }}</option>
+              </select>
             </div>
 
             <div class="form-group">
@@ -218,8 +302,10 @@ import { ref, computed, onMounted } from 'vue'
 import PageLayout from '@/components/PageLayout.vue'
 import ErroCarregamento from '@/components/ErroCarregamento.vue'
 import ModalConfirmacao from '@/components/ModalConfirmacao.vue'
-import apiClient from '@/services/api'
-import { extrairLista, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import GraficoBarras from '@/components/GraficoBarras.vue'
+import culturaService from '@/services/culturaService'
+import { diasAte, formatarDataCurta, formatarQuantidade, mensagemDeErro, parseNumero } from '@/services/apiHelpers'
+import { CATEGORIAS, OPCOES_CATEGORIA, categoriaDe } from '@/config/culturas'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
 
@@ -232,20 +318,156 @@ const salvando = ref(false)
 const excluindo = ref(false)
 const erroCarregamento = ref('')
 
+const busca = ref('')
+const categoriaFiltro = ref('todas')
+const ordenacao = ref('nome')
+
 const exibirModal = ref(false)
 const modoEdicao = ref(false)
-const culturaSelecionada = ref(null)
 
 const modalExclusaoAberto = ref(false)
 const culturaParaExcluir = ref(null)
 
-const podeExcluir = computed(() => {
-  return Boolean(authStore.isGerente || authStore.isAdmin)
-})
+const podeExcluir = computed(() => Boolean(authStore.isGerente || authStore.isAdmin))
+
+// Sem colheita agendada vai para o fim na ordenação por próxima colheita
+const SEM_DATA = '9999-12-31'
+const ORDENACOES = {
+  nome: { nome: 'Nome (A-Z)', comparar: (a, b) => a.nome_cultura.localeCompare(b.nome_cultura, 'pt-BR') },
+  colheita: {
+    nome: 'Próxima colheita',
+    comparar: (a, b) => (a.proxima_colheita || SEM_DATA).localeCompare(b.proxima_colheita || SEM_DATA),
+  },
+  producao: { nome: 'Mais colhido', comparar: (a, b) => parseNumero(b.total_colhido) - parseNumero(a.total_colhido) },
+  recentes: { nome: 'Mais recentes', comparar: (a, b) => b.id - a.id },
+}
+
+const COR_COLHIDO = '#588157'
+const COR_PERDA = '#d32f2f'
+
+const formatarPercentual = (valor) =>
+  `${parseNumero(valor).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
 
 // Sem colheita registrada, a taxa 0% passaria a ideia de que a produção toda foi perdida
 function temColheita(cultura) {
   return parseNumero(cultura.total_colhido) + parseNumero(cultura.total_perda) > 0
+}
+
+const kpis = computed(() => {
+  const lista = culturas.value
+  const colhido = lista.reduce((s, c) => s + parseNumero(c.total_colhido), 0)
+  const perda = lista.reduce((s, c) => s + parseNumero(c.total_perda), 0)
+  const lotes = lista.reduce((s, c) => s + (c.lotes_ativos || 0), 0)
+  const categorias = new Set(lista.map((c) => c.categoria)).size
+  return [
+    { rotulo: 'Culturas cadastradas', icone: 'potted_plant', valor: lista.length,
+      detalhe: `${categorias} ${categorias === 1 ? 'categoria' : 'categorias'}` },
+    { rotulo: 'Em cultivo agora', icone: 'agriculture', valor: lista.filter((c) => c.lotes_ativos > 0).length,
+      detalhe: `${lotes} ${lotes === 1 ? 'lote' : 'lotes'} nas mesas` },
+    { rotulo: 'Total colhido', icone: 'shopping_basket', valor: formatarQuantidade(colhido),
+      detalhe: `Perda: ${formatarQuantidade(perda)}` },
+    // Ponderada: uma cultura com pouca colheita não pesa o mesmo que uma com muita
+    { rotulo: 'Taxa de produção', icone: 'trending_up', valor: colhido + perda ? formatarPercentual((colhido * 100) / (colhido + perda)) : '—',
+      detalhe: 'Colhido sobre colhido + perda' },
+  ]
+})
+
+// Acima disso as demais viram uma linha "Outras", para o gráfico não virar um paredão de barras
+const MAX_BARRAS = 8
+const totalProduzido = (c) => parseNumero(c.total_colhido) + parseNumero(c.total_perda)
+
+const graficoProducao = computed(() => {
+  const linhas = culturasDaCategoria.value
+    .filter(temColheita)
+    .sort((a, b) => totalProduzido(b) - totalProduzido(a))
+    .map((c) => ({ nome: c.nome_cultura, colhido: parseNumero(c.total_colhido), perda: parseNumero(c.total_perda) }))
+
+  if (linhas.length > MAX_BARRAS) {
+    const resto = linhas.splice(MAX_BARRAS - 1)
+    linhas.push({
+      nome: `Outras (${resto.length})`,
+      colhido: resto.reduce((s, l) => s + l.colhido, 0),
+      perda: resto.reduce((s, l) => s + l.perda, 0),
+    })
+  }
+
+  return {
+    rotulos: linhas.map((l) => l.nome),
+    series: [
+      { label: 'Colhido', data: linhas.map((l) => l.colhido), cor: COR_COLHIDO },
+      { label: 'Perdido', data: linhas.map((l) => l.perda), cor: COR_PERDA },
+    ],
+    altura: `${Math.max(180, linhas.length * 40 + 60)}px`,
+  }
+})
+
+function rotuloTooltipProducao(ctx, valor) {
+  const colhido = ctx.chart.data.datasets[0].data[ctx.dataIndex]
+  const perda = ctx.chart.data.datasets[1].data[ctx.dataIndex]
+  const percentual = colhido + perda ? formatarPercentual((valor * 100) / (colhido + perda)) : '—'
+  return `${ctx.dataset.label}: ${formatarQuantidade(valor)} (${percentual})`
+}
+
+const proximasColheitas = computed(() =>
+  culturas.value.filter((c) => c.proxima_colheita).sort(ORDENACOES.colheita.comparar).slice(0, 4),
+)
+
+const filtros = computed(() => {
+  const contagem = {}
+  culturas.value.forEach((c) => { contagem[c.categoria] = (contagem[c.categoria] || 0) + 1 })
+  return [
+    { valor: 'todas', nome: 'Todas', total: culturas.value.length },
+    ...Object.entries(CATEGORIAS)
+      .filter(([valor]) => contagem[valor])
+      .map(([valor, { nome }]) => ({ valor, nome, total: contagem[valor] })),
+  ]
+})
+
+const culturasDaCategoria = computed(() =>
+  culturas.value.filter((c) => categoriaFiltro.value === 'todas' || c.categoria === categoriaFiltro.value),
+)
+
+const culturasVisiveis = computed(() => {
+  const termo = busca.value.trim().toLocaleLowerCase('pt-BR')
+  return culturasDaCategoria.value
+    .filter((c) => !termo || `${c.nome_cultura} ${c.descricao || ''}`.toLocaleLowerCase('pt-BR').includes(termo))
+    .sort(ORDENACOES[ordenacao.value].comparar)
+})
+
+function parametros(cultura) {
+  return [
+    { rotulo: 'Ciclo', icone: 'calendar_month', valor: `${cultura.tempo_medio_colheita} dias` },
+    { rotulo: 'Temp.', icone: 'device_thermostat',
+      valor: `${parseNumero(cultura.temperatura_minima)}–${parseNumero(cultura.temperatura_maxima)}°C` },
+    { rotulo: 'Umidade', icone: 'water_drop', valor: `${parseNumero(cultura.umidade_ideal)}%` },
+  ]
+}
+
+function diaDoCiclo(cultura) {
+  return cultura.tempo_medio_colheita - diasAte(cultura.proxima_colheita)
+}
+
+function progressoCiclo(cultura) {
+  return Math.min(100, Math.max(0, (diaDoCiclo(cultura) / cultura.tempo_medio_colheita) * 100))
+}
+
+function prazoColheita(cultura) {
+  const dias = diasAte(cultura.proxima_colheita)
+  if (dias < 0) return { texto: `Atrasada ${-dias} ${dias === -1 ? 'dia' : 'dias'}`, classe: 'badge-out' }
+  if (dias === 0) return { texto: 'Colher hoje', classe: 'badge-low' }
+  return { texto: `Em ${dias} ${dias === 1 ? 'dia' : 'dias'}`, classe: dias <= 7 ? 'badge-low' : 'badge-good' }
+}
+
+function statusCultura(cultura) {
+  if (!cultura.lotes_ativos) return { texto: 'Sem plantio', classe: 'badge-neutro' }
+  if (diasAte(cultura.proxima_colheita) <= 0) return { texto: 'Pronta para colher', classe: 'badge-low' }
+  return { texto: 'Em cultivo', classe: 'badge-good' }
+}
+
+function textoLotes(cultura) {
+  const n = cultura.lotes_ativos || 0
+  if (!n) return 'Nenhum lote em cultivo'
+  return `${n} ${n === 1 ? 'lote' : 'lotes'} em cultivo`
 }
 
 const mensagemConfirmacaoExclusao = computed(() => {
@@ -256,6 +478,7 @@ const mensagemConfirmacaoExclusao = computed(() => {
 const formularioPadrao = () => ({
   id: null,
   nome_cultura: '',
+  categoria: 'outra',
   descricao: '',
   tempo_medio_colheita: 60,
   temperatura_minima: 18,
@@ -270,8 +493,7 @@ async function carregarCulturas() {
   carregando.value = true
   erroCarregamento.value = ''
   try {
-    const res = await apiClient.get('/cultura/')
-    culturas.value = extrairLista(res.data)
+    culturas.value = await culturaService.listar()
   } catch (err) {
     erroCarregamento.value = mensagemDeErro(err, 'Erro ao carregar lista de culturas.')
     toastStore.error(erroCarregamento.value)
@@ -291,6 +513,7 @@ function editarCultura(cultura) {
   formulario.value = {
     id: cultura.id,
     nome_cultura: cultura.nome_cultura,
+    categoria: cultura.categoria || 'outra',
     descricao: cultura.descricao || '',
     tempo_medio_colheita: cultura.tempo_medio_colheita,
     temperatura_minima: parseNumero(cultura.temperatura_minima),
@@ -299,10 +522,6 @@ function editarCultura(cultura) {
     observacoes: cultura.observacoes || ''
   }
   exibirModal.value = true
-}
-
-function selecionarCultura(cultura) {
-  culturaSelecionada.value = cultura
 }
 
 function fecharModal() {
@@ -318,21 +537,14 @@ async function salvarCultura() {
 
   salvando.value = true
   try {
-    const payload = {
-      nome_cultura: formulario.value.nome_cultura.trim(),
-      descricao: formulario.value.descricao,
-      tempo_medio_colheita: formulario.value.tempo_medio_colheita,
-      temperatura_minima: formulario.value.temperatura_minima,
-      temperatura_maxima: formulario.value.temperatura_maxima,
-      umidade_ideal: formulario.value.umidade_ideal,
-      observacoes: formulario.value.observacoes
-    }
+    const { id, ...dados } = formulario.value
+    const payload = { ...dados, nome_cultura: dados.nome_cultura.trim() }
 
-    if (modoEdicao.value && formulario.value.id) {
-      await apiClient.put(`/cultura/${formulario.value.id}/`, payload)
+    if (modoEdicao.value && id) {
+      await culturaService.atualizar(id, payload)
       toastStore.success('Cultura atualizada com sucesso!')
     } else {
-      await apiClient.post('/cultura/', payload)
+      await culturaService.criar(payload)
       toastStore.success('Cultura cadastrada com sucesso!')
     }
 
@@ -356,8 +568,8 @@ async function confirmarExclusao() {
 
   excluindo.value = true
   try {
-    await apiClient.delete(`/cultura/${culturaParaExcluir.value.id}/`)
-    toastStore.success('Cultura e registros associados excluídos com sucesso!')
+    await culturaService.excluir(culturaParaExcluir.value.id)
+    toastStore.success('Cultura excluída com sucesso!')
     modalExclusaoAberto.value = false
     culturaParaExcluir.value = null
     await carregarCulturas()
@@ -368,75 +580,211 @@ async function confirmarExclusao() {
   }
 }
 
-onMounted(() => {
-  carregarCulturas()
-})
+onMounted(carregarCulturas)
 </script>
 
 <style scoped>
 .culturas-container {
-  padding: 1.5rem;
-  max-width: 1280px;
-  margin: 0 auto;
+  padding: 1.5rem clamp(1rem, 2vw, 2rem);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
-.header-actions {
+.toolbar {
+  justify-content: flex-end;
+}
+
+.header-actions,
+.toolbar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  gap: 0.75rem;
+}
+
+.subtitle,
+.kpi-detalhe,
+.categoria-nome,
+.sem-dados,
+.painel-vazio {
+  color: var(--color-text-muted);
 }
 
 .subtitle {
-  color: var(--color-text-muted, #64748b);
   margin-top: 0.25rem;
   font-size: 0.95rem;
 }
 
+.toolbar .search-box-estoque {
+  width: 240px;
+}
+
+.btn-exportar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
+}
+
+.btn-exportar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: transparent;
+  color: var(--primary-green);
+}
+
+.select-ordenar {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  font-size: 0.9rem;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 1rem;
+}
+
+.kpi-detalhe {
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+}
+
+.paineis {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.painel,
+.cultura-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+}
+
+.painel {
+  padding: 1.25rem;
+}
+
+.painel-titulo {
+  font-size: 1rem;
+  margin: 0 0 1rem;
+}
+
+.painel-vazio {
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.proximas {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.proximas li,
+.card-rodape,
+.card-titulo,
+.bloco-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.proxima-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.proxima-info strong,
+.proxima-info small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.proxima-info small {
+  color: var(--color-text-muted);
+}
+
+.icone-categoria {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .culturas-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  gap: 1.25rem;
 }
 
 .cultura-card {
-  background: var(--color-surface, #ffffff);
-  border: 1px solid var(--color-border, #e2e8f0);
-  border-radius: var(--radius-lg, 12px);
-  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
+  overflow: hidden;
 }
 
-.cultura-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+.card-faixa {
+  height: 44px;
+  background: var(--cor-categoria);
+  position: relative;
 }
 
-.card-header {
+.card-faixa .icone-categoria {
+  position: absolute;
+  left: 1rem;
+  bottom: -18px;
+  width: 44px;
+  height: 44px;
+  background: var(--color-surface);
+  color: var(--cor-categoria);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.card-corpo {
+  padding: 1.75rem 1rem 1rem;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.85rem;
+  flex: 1;
+}
+
+.card-titulo {
   align-items: flex-start;
 }
 
-.card-header h3 {
-  font-size: 1.15rem;
-  color: var(--color-text, #1e293b);
+.card-titulo h3 {
+  font-size: 1.1rem;
   margin: 0;
 }
 
-.card-actions {
-  display: flex;
-  gap: 0.25rem;
-}
-
 .descricao-curta {
-  font-size: 0.875rem;
-  color: var(--color-text-muted, #64748b);
-  line-height: 1.4;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -444,80 +792,130 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.metricas-resumo {
-  background: var(--color-background, #f8fafc);
-  padding: 0.75rem;
-  border-radius: var(--radius-md, 8px);
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-}
-
-.metrica {
-  display: flex;
-  justify-content: space-between;
-}
-
-.metrica .label {
-  color: var(--color-text-muted, #64748b);
-}
-
-.metrica .valor {
-  font-weight: 500;
-  color: var(--color-text, #1e293b);
-}
-
-.metricas-producao {
+.parametros {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--color-border, #e2e8f0);
-  font-size: 0.75rem;
+  margin: 0;
+  font-size: 0.8rem;
 }
 
-.prod-item {
+.parametros dt {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  color: var(--color-text-muted);
+}
+
+.parametros dt .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.parametros dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.bloco {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.cultura-card .prog-fill {
+  background: var(--cor-categoria);
+}
+
+.taxa {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.badge-neutro {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--color-text-muted);
+}
+
+.badge {
+  white-space: nowrap;
+}
+
+.card-rodape {
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.card-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+@media (max-width: 1100px) {
+  .paineis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+  }
+
+  .toolbar .search-box-estoque {
+    width: auto;
+  }
+
+  .proximas {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+    gap: 0.85rem 2rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar .btn-primary {
+    justify-content: center;
+  }
+
+  .filtros {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .filtros .filtro-btn {
+    flex-shrink: 0;
+  }
+}
+
+.loading-state,
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
   text-align: center;
+  background: var(--color-surface);
+  border-radius: 12px;
+  border: 1px dashed var(--color-border);
 }
 
-.prod-item .label {
-  color: var(--color-text-muted, #64748b);
-  margin-bottom: 0.15rem;
-}
-
-.prod-item .valor {
-  font-weight: 600;
-  color: var(--color-text, #1e293b);
-}
-
-.prod-item .valor.perda {
-  color: var(--color-danger, #ef4444);
-}
-
-.prod-item .valor.taxa {
-  color: var(--color-primary, #16a34a);
-}
-
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background-color: var(--color-primary, #16a34a);
-  color: #fff;
-  border: none;
-  padding: 0.625rem 1.25rem;
-  border-radius: var(--radius-md, 8px);
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.btn-primary:hover {
-  background-color: var(--color-primary-dark, #15803d);
+.empty-icon {
+  font-size: 48px;
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
 }
 
 .btn-secondary {
@@ -546,25 +944,6 @@ onMounted(() => {
 
 .btn-icon.btn-danger:hover {
   color: var(--color-danger, #ef4444);
-}
-
-.loading-state,
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 4rem 1.5rem;
-  text-align: center;
-  background: var(--color-surface, #ffffff);
-  border-radius: var(--radius-lg, 12px);
-  border: 1px dashed var(--color-border, #e2e8f0);
-}
-
-.empty-icon {
-  font-size: 48px;
-  color: var(--color-text-muted, #64748b);
-  margin-bottom: 1rem;
 }
 
 .spinner {
@@ -642,7 +1021,8 @@ onMounted(() => {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
   padding: 0.55rem 0.75rem;
   border: 1px solid var(--color-border, #e2e8f0);
   border-radius: var(--radius-md, 8px);

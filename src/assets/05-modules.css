@@ -6,6 +6,7 @@
 /* ── Wrapper principal ── */
 .main-content {
   flex: 1;
+  min-width: 0; /* sem isso, gráficos e tabelas largos esticam a página além da tela */
   margin-left: 85px;
   display: flex;
   flex-direction: column;
